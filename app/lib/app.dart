@@ -8,6 +8,10 @@ import 'features/auth/register_page.dart';
 import 'features/landing/landing_page.dart';
 import 'features/dashboards/role_dashboards.dart';
 import 'features/dashboards/role_selector_page.dart';
+import 'features/offline/offline_banner.dart';
+import 'features/offline/offline_dispatchers.dart';
+import 'features/offline/offline_queue.dart';
+import 'features/offline/offline_service.dart';
 import 'theme.dart';
 
 class ScholesaApp extends StatelessWidget {
@@ -15,8 +19,19 @@ class ScholesaApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return ChangeNotifierProvider(
-      create: (_) => AppState(),
+    return MultiProvider(
+      providers: [
+        ChangeNotifierProvider(create: (_) => AppState()),
+        ChangeNotifierProvider(
+          create: (_) {
+            final queue = OfflineQueue();
+            queue.load();
+            registerOfflineDispatchers(queue);
+            return queue;
+          },
+        ),
+        ChangeNotifierProvider(create: (_) => OfflineService()),
+      ],
       child: StreamBuilder<User?>(
         stream: FirebaseAuth.instance.authStateChanges(),
         builder: (context, snapshot) {
@@ -33,6 +48,9 @@ class ScholesaApp extends StatelessWidget {
             title: 'Scholesa EDU',
             theme: AppTheme.light(),
             initialRoute: '/',
+            builder: (context, child) => OfflineBanner(
+              child: child ?? const SizedBox.shrink(),
+            ),
             routes: <String, WidgetBuilder>{
               '/': (context) => const LandingPage(),
               '/login': (context) => const LoginPage(),

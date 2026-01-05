@@ -45,7 +45,7 @@ class _RegisterPageState extends State<RegisterPage> {
       context.read<AppState>().clearRole();
       Navigator.pushReplacementNamed(context, '/roles');
     } catch (e) {
-      setState(() => error = e.toString());
+      setState(() => error = 'Registration failed. Try again.');
     } finally {
       if (mounted) {
         setState(() => loading = false);
@@ -55,56 +55,125 @@ class _RegisterPageState extends State<RegisterPage> {
 
   @override
   Widget build(BuildContext context) {
+    final gradient = const LinearGradient(
+      colors: [Color(0xFF0B1224), Color(0xFF0F172A), Color(0xFF0B1224)],
+      begin: Alignment.topLeft,
+      end: Alignment.bottomRight,
+    );
     return Scaffold(
-      appBar: AppBar(title: const Text('Register')),
-      body: Center(
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 440),
-          child: SingleChildScrollView(
-            padding: const EdgeInsets.all(20),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: <Widget>[
-                Text('Create your account', style: Theme.of(context).textTheme.headlineSmall),
-                const SizedBox(height: 8),
-                const Text('Use your school email to register.'),
-                const SizedBox(height: 24),
-                TextField(
-                  controller: emailController,
-                  keyboardType: TextInputType.emailAddress,
-                  decoration: const InputDecoration(labelText: 'Email'),
+      body: Container(
+        decoration: BoxDecoration(gradient: gradient),
+        child: SafeArea(
+          child: Center(
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 520),
+              child: Padding(
+                padding: const EdgeInsets.all(20),
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: <Widget>[
+                    const Text(
+                      'Create your account',
+                      style: TextStyle(color: Colors.white, fontSize: 28, fontWeight: FontWeight.w800),
+                    ),
+                    const SizedBox(height: 6),
+                    const Text('Use your school email to join.', style: TextStyle(color: Colors.white70)),
+                    const SizedBox(height: 24),
+                    _glassCard(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          _label('Email address'),
+                          const SizedBox(height: 8),
+                          _field(
+                            controller: emailController,
+                            keyboardType: TextInputType.emailAddress,
+                            hint: 'you@example.com',
+                          ),
+                          const SizedBox(height: 14),
+                          _label('Password'),
+                          const SizedBox(height: 8),
+                          _field(controller: passwordController, obscure: true, hint: '••••••••'),
+                          const SizedBox(height: 14),
+                          _label('Confirm password'),
+                          const SizedBox(height: 8),
+                          _field(controller: confirmController, obscure: true, hint: '••••••••'),
+                          const SizedBox(height: 14),
+                          if (error != null)
+                            Padding(
+                              padding: const EdgeInsets.only(bottom: 8),
+                              child: Text(error!, style: const TextStyle(color: Colors.redAccent)),
+                            ),
+                          ElevatedButton(
+                            onPressed: loading ? null : _submit,
+                            style: ElevatedButton.styleFrom(
+                              padding: const EdgeInsets.symmetric(vertical: 14),
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                              backgroundColor: const Color(0xFFF59E0B),
+                              foregroundColor: const Color(0xFF0B1224),
+                            ),
+                            child: loading
+                                ? const SizedBox(height: 20, width: 20, child: CircularProgressIndicator(strokeWidth: 2))
+                                : const Text('Create account', style: TextStyle(fontWeight: FontWeight.w700)),
+                          ),
+                          TextButton(
+                            onPressed: loading ? null : () => Navigator.pop(context),
+                            child: const Text('Back to login', style: TextStyle(color: Colors.white70)),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
                 ),
-                const SizedBox(height: 12),
-                TextField(
-                  controller: passwordController,
-                  obscureText: true,
-                  decoration: const InputDecoration(labelText: 'Password'),
-                ),
-                const SizedBox(height: 12),
-                TextField(
-                  controller: confirmController,
-                  obscureText: true,
-                  decoration: const InputDecoration(labelText: 'Confirm Password'),
-                ),
-                const SizedBox(height: 12),
-                if (error != null)
-                  Text(error!, style: const TextStyle(color: Colors.red)),
-                const SizedBox(height: 16),
-                ElevatedButton(
-                  onPressed: loading ? null : _submit,
-                  child: loading
-                      ? const SizedBox(height: 20, width: 20, child: CircularProgressIndicator(strokeWidth: 2))
-                      : const Text('Create Account'),
-                ),
-                TextButton(
-                  onPressed: loading ? null : () => Navigator.pop(context),
-                  child: const Text('Back to login'),
-                ),
-              ],
+              ),
             ),
           ),
         ),
       ),
     );
   }
+
+  Widget _label(String text) => Text(text, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w700));
+
+  Widget _field({
+    required TextEditingController controller,
+    bool obscure = false,
+    required String hint,
+    TextInputType keyboardType = TextInputType.text,
+  }) {
+    return TextField(
+      controller: controller,
+      keyboardType: keyboardType,
+      obscureText: obscure,
+      decoration: InputDecoration(
+        hintText: hint,
+        hintStyle: const TextStyle(color: Colors.white38),
+        filled: true,
+        fillColor: Colors.white.withOpacity(0.05),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(14),
+          borderSide: const BorderSide(color: Colors.white24),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(14),
+          borderSide: const BorderSide(color: Color(0xFFF59E0B)),
+        ),
+      ),
+      style: const TextStyle(color: Colors.white),
+    );
+  }
+}
+
+Widget _glassCard({required Widget child}) {
+  return Container(
+    decoration: BoxDecoration(
+      color: Colors.white.withOpacity(0.06),
+      borderRadius: BorderRadius.circular(18),
+      border: Border.all(color: Colors.white10),
+      boxShadow: const [BoxShadow(color: Colors.black45, blurRadius: 18, offset: Offset(0, 12))],
+    ),
+    padding: const EdgeInsets.all(16),
+    child: child,
+  );
 }
