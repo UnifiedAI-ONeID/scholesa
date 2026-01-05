@@ -5,26 +5,46 @@
 // gestures. You can also use WidgetTester to find child widgets in the widget
 // tree, read text, and verify that the values of widget properties are correct.
 
+import 'package:app/features/auth/app_state.dart';
+import 'package:app/features/auth/auth_service.dart';
+import 'package:app/features/landing/landing_page.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-
-import 'package:app/app.dart';
+import 'package:provider/provider.dart';
 
 void main() {
-  testWidgets('Counter increments smoke test', (WidgetTester tester) async {
-    // Build our app and trigger a frame.
-    await tester.pumpWidget(const ScholesaApp());
+  TestWidgetsFlutterBinding.ensureInitialized();
 
-    // Verify that our counter starts at 0.
-    expect(find.text('0'), findsOneWidget);
-    expect(find.text('1'), findsNothing);
+  testWidgets('Landing renders pillars', (WidgetTester tester) async {
+    await tester.pumpWidget(
+      ChangeNotifierProvider(
+        create: (_) => AppState(authService: _FakeAuthService()),
+        child: const MaterialApp(home: LandingPage()),
+      ),
+    );
 
-    // Tap the '+' icon and trigger a frame.
-    await tester.tap(find.byIcon(Icons.add));
-    await tester.pump();
-
-    // Verify that our counter has incremented.
-    expect(find.text('0'), findsNothing);
-    expect(find.text('1'), findsOneWidget);
+    expect(find.text('Scholesa'), findsOneWidget);
+    expect(find.text('Future Skills'), findsOneWidget);
+    expect(find.text('Leadership & Agency'), findsOneWidget);
+    expect(find.text('Impact & Innovation'), findsOneWidget);
   });
+}
+
+class _FakeAuthService implements AuthServiceBase {
+  @override
+  Future<EntitlementsResult> loadEntitlements() async => const EntitlementsResult(
+        roles: {'learner', 'educator'},
+        siteIds: <String>['site-demo'],
+        primarySiteId: 'site-demo',
+      );
+
+  @override
+  Future<User?> register({required String email, required String password}) async => null;
+
+  @override
+  Future<User?> signIn({required String email, required String password}) async => null;
+
+  @override
+  Future<void> signOut() async {}
 }

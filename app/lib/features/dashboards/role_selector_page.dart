@@ -33,6 +33,7 @@ class _RoleSelectorPageState extends State<RoleSelectorPage> {
 
   @override
   Widget build(BuildContext context) {
+    final entitlements = context.watch<AppState>().entitlements;
     return Scaffold(
       appBar: AppBar(title: const Text('Choose role')),
       body: ListView(
@@ -42,8 +43,20 @@ class _RoleSelectorPageState extends State<RoleSelectorPage> {
               (MapEntry<String, String> entry) => Card(
                 child: ListTile(
                   title: Text(entry.value),
-                  trailing: const Icon(Icons.chevron_right),
+                  subtitle: entitlements.contains(entry.key)
+                      ? null
+                      : const Text('Not enabled for this account'),
+                  trailing: Icon(
+                    Icons.chevron_right,
+                    color: entitlements.contains(entry.key) ? null : Colors.grey,
+                  ),
                   onTap: () {
+                    if (!entitlements.contains(entry.key)) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(content: Text('Role not enabled for this account')),
+                      );
+                      return;
+                    }
                     context.read<AppState>().setRole(entry.key);
                     Navigator.pushNamed(context, '/dashboard/${entry.key}');
                   },

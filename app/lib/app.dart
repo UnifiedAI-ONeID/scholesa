@@ -20,7 +20,15 @@ class ScholesaApp extends StatelessWidget {
       child: StreamBuilder<User?>(
         stream: FirebaseAuth.instance.authStateChanges(),
         builder: (context, snapshot) {
-          context.read<AppState>().setUser(snapshot.data);
+          final appState = context.read<AppState>();
+          final user = snapshot.data;
+          if (user != null) {
+            appState.setUser(user);
+            // Refresh entitlements from custom claims then Firestore profile.
+            appState.refreshEntitlements();
+          } else {
+            appState.clearAuth();
+          }
           return MaterialApp(
             title: 'Scholesa EDU',
             theme: AppTheme.light(),
