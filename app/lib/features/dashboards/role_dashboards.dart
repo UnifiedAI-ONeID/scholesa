@@ -1466,8 +1466,13 @@ class _UserManagementCard extends StatefulWidget {
 
 class _UserManagementCardState extends State<_UserManagementCard> {
   final TextEditingController _search = TextEditingController();
+  final TextEditingController _newUserId = TextEditingController();
+  final TextEditingController _newEmail = TextEditingController();
+  final TextEditingController _newDisplayName = TextEditingController();
+  String _newRole = 'learner';
   bool _loading = false;
   List<UserModel> _users = <UserModel>[];
+  bool _showArchived = false;
 
   @override
   void initState() {
@@ -1478,6 +1483,9 @@ class _UserManagementCardState extends State<_UserManagementCard> {
   @override
   void dispose() {
     _search.dispose();
+    _newUserId.dispose();
+    _newEmail.dispose();
+    _newDisplayName.dispose();
     super.dispose();
   }
 
@@ -1492,6 +1500,54 @@ class _UserManagementCardState extends State<_UserManagementCard> {
           .get();
       final users = snap.docs.map(UserModel.fromDoc).toList();
       if (mounted) setState(() => _users = users);
+    } finally {
+      if (mounted) setState(() => _loading = false);
+    }
+  }
+
+  Future<void> _createUser() async {
+    final userId = _newUserId.text.trim();
+    final email = _newEmail.text.trim();
+    if (userId.isEmpty || email.isEmpty) {
+      _toast(context, 'User ID and email are required');
+      return;
+    }
+    final actorId = widget.appState.user?.uid ?? FirebaseAuth.instance.currentUser?.uid;
+    if (actorId == null) return;
+    setState(() => _loading = true);
+    final now = Timestamp.now();
+    try {
+      await FirebaseFirestore.instance.collection('users').doc(userId).set({
+        'email': email,
+        'role': _newRole,
+        'displayName': _newDisplayName.text.trim().isEmpty ? null : _newDisplayName.text.trim(),
+        'siteIds': FieldValue.arrayUnion(<String>[widget.siteId]),
+        'activeSiteId': widget.siteId,
+        'provisionedBy': actorId,
+        'provisionedAt': now,
+        'createdAt': now,
+        'updatedAt': now,
+        'archived': false,
+      });
+      await AuditLogRepository().log(
+        AuditLogModel(
+          id: 'audit-user-create-$userId-${now.millisecondsSinceEpoch}',
+          actorId: actorId,
+          actorRole: widget.appState.role ?? 'site',
+          action: 'user.create',
+          entityType: 'user',
+          entityId: userId,
+          siteId: widget.siteId,
+          details: {'role': _newRole, 'email': email},
+          createdAt: Timestamp.now(),
+        ),
+      );
+      if (!mounted) return;
+      _toast(context, 'User created and added to site');
+      _newUserId.clear();
+      _newEmail.clear();
+      _newDisplayName.clear();
+      _load();
     } finally {
       if (mounted) setState(() => _loading = false);
     }
@@ -1519,6 +1575,36 @@ class _UserManagementCardState extends State<_UserManagementCard> {
     );
     if (!mounted) return;
     _toast(context, 'Role updated');
+    _load();
+  }
+
+  Future<void> _updateDisplayName(UserModel user) async {
+    final controller = TextEditingController(text: user.displayName ?? '');
+    final result = await showDialog<String>(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          backgroundColor: const Color(0xFF0F172A),
+          title: const Text('Edit display name', style: TextStyle(color: Colors.white)),
+          content: TextField(
+            controller: controller,
+            style: const TextStyle(color: Colors.white),
+            decoration: const InputDecoration(labelText: 'Display name', labelStyle: TextStyle(color: Colors.white70)),
+          ),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
+            TextButton(onPressed: () => Navigator.pop(context, controller.text.trim()), child: const Text('Save')),
+          ],
+        );
+      },
+    );
+    if (result == null) return;
+    await FirebaseFirestore.instance.collection('users').doc(user.id).update({
+      'displayName': result.isEmpty ? null : result,
+      'updatedAt': Timestamp.now(),
+    });
+    if (!mounted) return;
+    _toast(context, 'Display name updated');
     _load();
   }
 
@@ -1552,19 +1638,116 @@ class _UserManagementCardState extends State<_UserManagementCard> {
     _load();
   }
 
+  Future<void> _toggleArchive(UserModel user) async {
+    final newArchived = !user.archived;
+    final actorId = widget.appState.user?.uid ?? FirebaseAuth.instance.currentUser?.uid;
+    await FirebaseFirestore.instance.collection('users').doc(user.id).update({
+      'archived': newArchived,
+      'updatedAt': Timestamp.now(),
+    });
+    await AuditLogRepository().log(
+      AuditLogModel(
+        id: 'audit-user-archive-${user.id}-${DateTime.now().millisecondsSinceEpoch}',
+        actorId: actorId ?? 'unknown',
+        actorRole: widget.appState.role ?? 'site',
+        action: newArchived ? 'user.archive' : 'user.restore',
+        entityType: 'user',
+        entityId: user.id,
+        siteId: widget.siteId,
+        details: {'archived': newArchived},
+        createdAt: Timestamp.now(),
+      ),
+    );
+    if (!mounted) return;
+    _toast(context, newArchived ? 'User archived' : 'User restored');
+    _load();
+  }
+
+  Future<void> _deleteUser(UserModel user) async {
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          backgroundColor: const Color(0xFF0F172A),
+          title: const Text('Delete user?', style: TextStyle(color: Colors.white)),
+          content: Text('This removes the user document. Continue?', style: TextStyle(color: Colors.white.withValues(alpha: 0.85))),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancel')),
+            TextButton(onPressed: () => Navigator.pop(context, true), child: const Text('Delete', style: TextStyle(color: Colors.redAccent))),
+          ],
+        );
+      },
+    );
+    if (confirm != true) return;
+    final actorId = widget.appState.user?.uid ?? FirebaseAuth.instance.currentUser?.uid;
+    await FirebaseFirestore.instance.collection('users').doc(user.id).delete();
+    await AuditLogRepository().log(
+      AuditLogModel(
+        id: 'audit-user-delete-${user.id}-${DateTime.now().millisecondsSinceEpoch}',
+        actorId: actorId ?? 'unknown',
+        actorRole: widget.appState.role ?? 'site',
+        action: 'user.delete',
+        entityType: 'user',
+        entityId: user.id,
+        siteId: widget.siteId,
+        details: {'email': user.email},
+        createdAt: Timestamp.now(),
+      ),
+    );
+    if (!mounted) return;
+    _toast(context, 'User deleted');
+    _load();
+  }
+
   @override
   Widget build(BuildContext context) {
     final filtered = _users.where((u) {
       final term = _search.text.trim().toLowerCase();
       if (term.isEmpty) return true;
       return u.id.toLowerCase().contains(term) || u.email.toLowerCase().contains(term);
-    }).toList();
+    }).where((u) => _showArchived ? true : !u.archived).toList();
 
     return _GlassCard(
       title: 'User management',
       subtitle: 'View and adjust users scoped to this site.',
       child: Column(
         children: [
+          Row(
+            children: [
+              Expanded(child: _TextField(controller: _newUserId, label: 'User ID', hint: 'uid or email prefix')),
+              const SizedBox(width: 8),
+              Expanded(child: _TextField(controller: _newEmail, label: 'Email', hint: 'user@example.com')),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Row(
+            children: [
+              Expanded(child: _TextField(controller: _newDisplayName, label: 'Display name (optional)', hint: 'Name')),
+              const SizedBox(width: 8),
+              DropdownButton<String>(
+                value: _newRole,
+                dropdownColor: const Color(0xFF0F172A),
+                items: const [
+                  DropdownMenuItem(value: 'learner', child: Text('Learner')),
+                  DropdownMenuItem(value: 'educator', child: Text('Educator')),
+                  DropdownMenuItem(value: 'parent', child: Text('Parent')),
+                  DropdownMenuItem(value: 'site', child: Text('Site')),
+                  DropdownMenuItem(value: 'partner', child: Text('Partner')),
+                  DropdownMenuItem(value: 'hq', child: Text('HQ')),
+                ],
+                onChanged: (value) => setState(() => _newRole = value ?? 'learner'),
+                iconEnabledColor: Colors.white,
+                style: const TextStyle(color: Colors.white),
+              ),
+              const SizedBox(width: 8),
+              ElevatedButton.icon(
+                onPressed: _loading ? null : _createUser,
+                icon: const Icon(Icons.person_add, color: Colors.white),
+                label: Text(_loading ? 'Working...' : 'Add user'),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
           Row(
             children: [
               Expanded(child: _TextField(controller: _search, label: 'Search by email or ID', hint: 'user@example.com')),
@@ -1574,6 +1757,17 @@ class _UserManagementCardState extends State<_UserManagementCard> {
                 icon: _loading
                     ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))
                     : const Icon(Icons.refresh, color: Colors.white),
+              ),
+              const SizedBox(width: 8),
+              Row(
+                children: [
+                  const Text('Show archived', style: TextStyle(color: Colors.white70)),
+                  Switch(
+                    value: _showArchived,
+                    thumbColor: const WidgetStatePropertyAll(Color(0xFF38BDF8)),
+                    onChanged: (v) => setState(() => _showArchived = v),
+                  ),
+                ],
               ),
             ],
           ),
@@ -1604,16 +1798,35 @@ class _UserManagementCardState extends State<_UserManagementCard> {
               final isMember = user.siteIds.contains(widget.siteId);
               return ListTile(
                 dense: true,
-                title: Text('${user.email} • ${user.id}', style: const TextStyle(color: Colors.white)),
+                title: Row(
+                  children: [
+                    Expanded(child: Text('${user.email} • ${user.id}', style: const TextStyle(color: Colors.white))),
+                    if (user.archived)
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                        decoration: BoxDecoration(
+                          color: Colors.redAccent.withValues(alpha: 0.3),
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(color: Colors.redAccent.withValues(alpha: 0.6)),
+                        ),
+                        child: const Text('ARCHIVED', style: TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.w700)),
+                      ),
+                  ],
+                ),
                 subtitle: Text(
-                  'Role: ${user.role} • Sites: ${user.siteIds.join(', ')}${user.activeSiteId != null ? ' • Active: ${user.activeSiteId}' : ''}',
+                  'Role: ${user.role} • Sites: ${user.siteIds.join(', ')}${user.activeSiteId != null ? ' • Active: ${user.activeSiteId}' : ''}${user.displayName != null ? ' • Name: ${user.displayName}' : ''}',
                   style: const TextStyle(color: Colors.white70),
                 ),
                 trailing: SizedBox(
-                  width: 240,
+                  width: 330,
                   child: Row(
                     mainAxisAlignment: MainAxisAlignment.end,
                     children: [
+                      IconButton(
+                        tooltip: 'Edit display name',
+                        onPressed: () => _updateDisplayName(user),
+                        icon: const Icon(Icons.edit, color: Colors.white70, size: 20),
+                      ),
                       DropdownButton<String>(
                         value: user.role,
                         dropdownColor: const Color(0xFF0F172A),
@@ -1648,6 +1861,16 @@ class _UserManagementCardState extends State<_UserManagementCard> {
                         tooltip: 'Set active site',
                         onPressed: () => _setActiveSite(user),
                         icon: const Icon(Icons.push_pin, color: Colors.white70, size: 20),
+                      ),
+                      IconButton(
+                        tooltip: user.archived ? 'Restore user' : 'Archive user',
+                        onPressed: () => _toggleArchive(user),
+                        icon: Icon(user.archived ? Icons.unarchive : Icons.archive, color: Colors.white70, size: 20),
+                      ),
+                      IconButton(
+                        tooltip: 'Delete user',
+                        onPressed: () => _deleteUser(user),
+                        icon: const Icon(Icons.delete_outline, color: Colors.redAccent, size: 20),
                       ),
                     ],
                   ),

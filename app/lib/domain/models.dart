@@ -14,6 +14,7 @@ class UserModel {
     this.provisionedAt,
     this.createdAt,
     this.updatedAt,
+    this.archived = false,
   });
 
   final String id;
@@ -26,6 +27,7 @@ class UserModel {
   final Timestamp? provisionedAt;
   final Timestamp? createdAt;
   final Timestamp? updatedAt;
+  final bool archived;
 
   factory UserModel.fromDoc(DocumentSnapshot<Map<String, dynamic>> doc) {
     final data = doc.data() ?? <String, dynamic>{};
@@ -40,6 +42,7 @@ class UserModel {
       provisionedAt: data['provisionedAt'] as Timestamp?,
       createdAt: data['createdAt'] as Timestamp?,
       updatedAt: data['updatedAt'] as Timestamp?,
+      archived: data['archived'] as bool? ?? false,
     );
   }
 
@@ -53,6 +56,7 @@ class UserModel {
         'provisionedAt': provisionedAt,
         'createdAt': createdAt ?? Timestamp.now(),
         'updatedAt': updatedAt ?? Timestamp.now(),
+        'archived': archived,
       };
 }
 
