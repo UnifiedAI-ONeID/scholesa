@@ -15,7 +15,6 @@ class LandingPage extends StatelessWidget {
       });
     }
 
-    final scheme = Theme.of(context).colorScheme;
     return Scaffold(
       body: Container(
         decoration: const BoxDecoration(
@@ -101,8 +100,8 @@ class LandingPage extends StatelessWidget {
                               padding: const EdgeInsets.symmetric(vertical: 16),
                               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
                             ).copyWith(
-                              backgroundColor: MaterialStateProperty.all(const Color(0xFFF59E0B)),
-                              foregroundColor: MaterialStateProperty.all(const Color(0xFF0B1224)),
+                                backgroundColor: WidgetStateProperty.all(const Color(0xFFF59E0B)),
+                                foregroundColor: WidgetStateProperty.all(const Color(0xFF0B1224)),
                             ),
                             child: const Text('Get started', style: TextStyle(fontWeight: FontWeight.w700)),
                           ),
@@ -167,7 +166,7 @@ class _Glow extends StatelessWidget {
       decoration: BoxDecoration(
         shape: BoxShape.circle,
         gradient: LinearGradient(colors: colors),
-        boxShadow: [BoxShadow(color: colors.last.withOpacity(0.35), blurRadius: 120, spreadRadius: 36)],
+        boxShadow: [BoxShadow(color: colors.last.withValues(alpha: 0.35), blurRadius: 120, spreadRadius: 36)],
       ),
     );
   }

@@ -80,7 +80,7 @@ class OfflineActions {
     final ts = DateTime.now();
     await queue.enqueue(
       PendingAction(
-        id: 'portfolio-${learnerId}-${ts.millisecondsSinceEpoch}',
+        id: 'portfolio-$learnerId-${ts.millisecondsSinceEpoch}',
         type: 'portfolioItem',
         payload: {
           'siteId': siteId,

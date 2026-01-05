@@ -125,7 +125,7 @@ class RoleDashboard extends StatelessWidget {
     final currentRole = appState.role ?? role;
     final entitlements = appState.entitlements;
     final siteIds = appState.siteIds;
-    final activeSiteId = appState.primarySiteId ?? (siteIds.isNotEmpty ? siteIds.first : null);
+    final String? activeSiteId = appState.primarySiteId ?? (siteIds.isNotEmpty ? siteIds.first : null);
     final isSiteScoped = currentRole == 'educator' || currentRole == 'site';
     if (FirebaseAuth.instance.currentUser == null) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -185,23 +185,25 @@ class RoleDashboard extends StatelessWidget {
                   _OfflineQueueCard(queue: queue, offline: offline),
                   if (currentRole == 'learner' && activeSiteId != null) ...[
                     const SizedBox(height: 12),
-                    _MissionAttemptForm(queue: queue, siteId: activeSiteId!, appState: appState),
+                    _MissionAttemptForm(queue: queue, siteId: activeSiteId, appState: appState),
                     const SizedBox(height: 12),
-                    _PortfolioItemForm(queue: queue, siteId: activeSiteId!, appState: appState),
+                    _PortfolioItemForm(queue: queue, siteId: activeSiteId, appState: appState),
                   ],
                   if ((currentRole == 'educator' || currentRole == 'site') && activeSiteId != null) ...[
                     const SizedBox(height: 12),
-                    _AttendanceForm(queue: queue, siteId: activeSiteId!, appState: appState),
+                    _AttendanceForm(queue: queue, siteId: activeSiteId, appState: appState),
                   ],
-                  if (currentRole == 'parent') ...[
+                  if (currentRole == 'parent' && activeSiteId != null) ...[
                     const SizedBox(height: 12),
-                      _AttendanceForm(queue: queue, siteId: activeSiteId!, appState: appState),
+                      _AttendanceForm(queue: queue, siteId: activeSiteId, appState: appState),
                       const SizedBox(height: 12),
-                      _AttendanceDemoCard(queue: queue, siteId: activeSiteId!),
+                      _AttendanceDemoCard(queue: queue, siteId: activeSiteId),
+                      const SizedBox(height: 12),
+                      _ParentSummaryCard(appState: appState, siteId: activeSiteId),
                   ],
                   if (currentRole == 'site' && activeSiteId != null) ...[
                     const SizedBox(height: 12),
-                    _SiteSessionForm(siteId: activeSiteId!, appState: appState),
+                    _SiteSessionForm(siteId: activeSiteId, appState: appState),
                   ],
                   if (currentRole == 'partner') ...[
                     const SizedBox(height: 12),
@@ -213,7 +215,7 @@ class RoleDashboard extends StatelessWidget {
                   ],
                   if ((currentRole == 'educator' || currentRole == 'site') && activeSiteId != null) ...[
                     const SizedBox(height: 12),
-                    _AttendanceDemoCard(queue: queue, siteId: activeSiteId!),
+                    _AttendanceDemoCard(queue: queue, siteId: activeSiteId),
                   ],
                   const SizedBox(height: 12),
                   Container(
@@ -297,7 +299,7 @@ class RoleDashboard extends StatelessWidget {
                             const Text('No sites assigned. Ask your site lead to add you to a site.', style: TextStyle(color: Colors.white70))
                           else
                             DropdownButtonFormField<String>(
-                              value: activeSiteId,
+                              initialValue: activeSiteId,
                               dropdownColor: const Color(0xFF0F172A),
                               iconEnabledColor: Colors.white,
                               items: siteIds
@@ -538,10 +540,10 @@ class _MissionAttemptFormState extends State<_MissionAttemptForm> {
                   sessionOccurrenceId: _sessionOccurrenceId.text.trim().isEmpty ? null : _sessionOccurrenceId.text.trim(),
                   actorRole: role,
                 );
+                if (!context.mounted) return;
                 if (!isOffline) await widget.queue.flush(online: true);
-                if (mounted) {
-                  _toast(context, isOffline ? 'Queued mission attempt for sync' : 'Mission attempt submitted');
-                }
+                if (!context.mounted) return;
+                _toast(context, isOffline ? 'Queued mission attempt for sync' : 'Mission attempt submitted');
               },
             ),
           ),
@@ -625,10 +627,10 @@ class _PortfolioItemFormState extends State<_PortfolioItemForm> {
                   url: _artifactUrl.text.trim().isEmpty ? null : _artifactUrl.text.trim(),
                   actorRole: role,
                 );
+                if (!context.mounted) return;
                 if (!isOffline) await widget.queue.flush(online: true);
-                if (mounted) {
-                  _toast(context, isOffline ? 'Queued portfolio item for sync' : 'Portfolio item saved');
-                }
+                if (!context.mounted) return;
+                _toast(context, isOffline ? 'Queued portfolio item for sync' : 'Portfolio item saved');
               },
             ),
           ),
@@ -678,7 +680,7 @@ class _AttendanceFormState extends State<_AttendanceForm> {
           _TextField(controller: _learnerId, label: 'Learner ID', hint: 'uid of learner'),
           const SizedBox(height: 8),
           DropdownButtonFormField<String>(
-            value: _status,
+            initialValue: _status,
             dropdownColor: const Color(0xFF0F172A),
             decoration: _inputDecoration('Status'),
             items: const [
@@ -707,20 +709,20 @@ class _AttendanceFormState extends State<_AttendanceForm> {
                   _toast(context, 'Sign in to record attendance');
                   return;
                 }
-                  await OfflineActions.queueAttendance(
-                    widget.queue,
-                    sessionOccurrenceId: sessionOccurrenceId,
-                    siteId: widget.siteId,
-                    learnerId: learnerId,
-                    recordedBy: recordedBy,
-                    status: _status,
-                    note: _note.text.trim().isNotEmpty ? _note.text.trim() : null,
-                    actorRole: role,
-                  );
+                await OfflineActions.queueAttendance(
+                  widget.queue,
+                  sessionOccurrenceId: sessionOccurrenceId,
+                  siteId: widget.siteId,
+                  learnerId: learnerId,
+                  recordedBy: recordedBy,
+                  status: _status,
+                  note: _note.text.trim().isNotEmpty ? _note.text.trim() : null,
+                  actorRole: role,
+                );
+                if (!context.mounted) return;
                 if (!isOffline) await widget.queue.flush(online: true);
-                if (mounted) {
-                  _toast(context, isOffline ? 'Queued attendance for sync' : 'Attendance saved');
-                }
+                if (!context.mounted) return;
+                _toast(context, isOffline ? 'Queued attendance for sync' : 'Attendance saved');
               },
             ),
           ),
@@ -742,10 +744,10 @@ class _AttendanceDemoCard extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: Colors.white.withOpacity(0.06),
+        color: Colors.white.withValues(alpha: 0.06),
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.white.withOpacity(0.08)),
-        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.35), blurRadius: 24, offset: const Offset(0, 12))],
+        border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
+        boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.35), blurRadius: 24, offset: const Offset(0, 12))],
         gradient: const LinearGradient(
           colors: [Color(0xFF0F172A), Color(0xFF111827)],
           begin: Alignment.topLeft,
@@ -776,7 +778,7 @@ class _AttendanceDemoCard extends StatelessWidget {
             ],
           ),
           const SizedBox(height: 12),
-          Text('Site: $siteId', style: TextStyle(color: Colors.white.withOpacity(0.75))),
+          Text('Site: $siteId', style: TextStyle(color: Colors.white.withValues(alpha: 0.75))),
           const SizedBox(height: 10),
           SizedBox(
             width: double.infinity,
@@ -859,21 +861,25 @@ class _ParentSummaryCardState extends State<_ParentSummaryCard> {
         query = query.where('siteId', isEqualTo: widget.siteId);
       }
       final snap = await query.get();
-      setState(() {
-        _portfolio = snap.docs
-            .map((QueryDocumentSnapshot<Map<String, dynamic>> doc) {
-              final data = doc.data();
-              final pillars = (data['pillarCodes'] as List?)?.whereType<String>().join(' • ');
-              return <String, String>{
-                'title': data['title'] as String? ?? 'Untitled',
-                'description': data['description'] as String? ?? '',
-                'pillars': pillars ?? '',
-              };
-            })
-            .toList();
-      });
+      if (mounted) {
+        setState(() {
+          _portfolio = snap.docs
+              .map((QueryDocumentSnapshot<Map<String, dynamic>> doc) {
+                final data = doc.data();
+                final pillars = (data['pillarCodes'] as List?)?.whereType<String>().join(' • ');
+                return <String, String>{
+                  'title': data['title'] as String? ?? 'Untitled',
+                  'description': data['description'] as String? ?? '',
+                  'pillars': pillars ?? '',
+                };
+              })
+              .toList();
+        });
+      }
     } finally {
-      setState(() => _loading = false);
+      if (mounted) {
+        setState(() => _loading = false);
+      }
     }
   }
 
@@ -897,6 +903,7 @@ class _ParentSummaryCardState extends State<_ParentSummaryCard> {
       updatedAt: Timestamp.now(),
     );
     await repo.upsert(model);
+    if (!mounted) return;
     _toast(context, 'Summary acknowledged');
   }
 
@@ -939,7 +946,7 @@ class _ParentSummaryCardState extends State<_ParentSummaryCard> {
                     (Map<String, String> item) => ListTile(
                       title: Text(item['title'] ?? '', style: const TextStyle(color: Colors.white)),
                       subtitle: Text(
-                        [item['description'], item['pillars']].where((String? v) => v != null && v!.isNotEmpty).join(' • '),
+                        [item['description'], item['pillars']].where((String? v) => v != null && v.isNotEmpty).join(' • '),
                         style: const TextStyle(color: Colors.white70),
                       ),
                     ),
@@ -1012,9 +1019,13 @@ class _SiteSessionFormState extends State<_SiteSessionForm> {
           createdAt: Timestamp.now(),
         ),
       );
-      _toast(context, 'Session created');
+      if (mounted) {
+        _toast(context, 'Session created');
+      }
     } finally {
-      setState(() => _saving = false);
+      if (mounted) {
+        setState(() => _saving = false);
+      }
     }
   }
 
@@ -1104,9 +1115,13 @@ class _PartnerDeliverableFormState extends State<_PartnerDeliverableForm> {
           createdAt: Timestamp.now(),
         ),
       );
-      _toast(context, 'Deliverable submitted');
+      if (mounted) {
+        _toast(context, 'Deliverable submitted');
+      }
     } finally {
-      setState(() => _saving = false);
+      if (mounted) {
+        setState(() => _saving = false);
+      }
     }
   }
 
@@ -1122,7 +1137,7 @@ class _PartnerDeliverableFormState extends State<_PartnerDeliverableForm> {
           _TextField(controller: _title, label: 'Deliverable title', hint: 'Workshop slides'),
           const SizedBox(height: 8),
           DropdownButtonFormField<String>(
-            value: _status,
+            initialValue: _status,
             dropdownColor: const Color(0xFF0F172A),
             decoration: _inputDecoration('Status'),
             items: const [
@@ -1217,9 +1232,13 @@ class _HqKpiFormState extends State<_HqKpiForm> {
           createdAt: Timestamp.now(),
         ),
       );
-      _toast(context, 'KPI saved');
+      if (mounted) {
+        _toast(context, 'KPI saved');
+      }
     } finally {
-      setState(() => _saving = false);
+      if (mounted) {
+        setState(() => _saving = false);
+      }
     }
   }
 
@@ -1266,10 +1285,10 @@ class _GlassCard extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: Colors.white.withOpacity(0.06),
+        color: Colors.white.withValues(alpha: 0.06),
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.white.withOpacity(0.08)),
-        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.35), blurRadius: 24, offset: const Offset(0, 12))],
+        border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
+        boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.35), blurRadius: 24, offset: const Offset(0, 12))],
         gradient: const LinearGradient(colors: [Color(0xFF0F172A), Color(0xFF111827)], begin: Alignment.topLeft, end: Alignment.bottomRight),
       ),
       child: Column(
@@ -1308,7 +1327,7 @@ InputDecoration _inputDecoration(String label) {
     labelText: label,
     labelStyle: const TextStyle(color: Colors.white70),
     filled: true,
-    fillColor: Colors.white.withOpacity(0.05),
+    fillColor: Colors.white.withValues(alpha: 0.05),
     enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: Colors.white24)),
     focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: Color(0xFF38BDF8))),
   );
@@ -1373,7 +1392,7 @@ class DashboardDataList extends StatelessWidget {
                 (DashboardItem item) => Container(
                   margin: const EdgeInsets.only(bottom: 10),
                   decoration: BoxDecoration(
-                    color: Colors.white.withOpacity(0.06),
+                    color: Colors.white.withValues(alpha: 0.06),
                     borderRadius: BorderRadius.circular(14),
                     border: Border.all(color: Colors.white12),
                     boxShadow: const [BoxShadow(color: Colors.black26, blurRadius: 12, offset: Offset(0, 8))],
@@ -1489,7 +1508,7 @@ class DashboardCardView extends StatelessWidget {
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
     return Card(
-      color: Colors.white.withOpacity(0.06),
+      color: Colors.white.withValues(alpha: 0.06),
       margin: const EdgeInsets.only(bottom: 12),
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14), side: const BorderSide(color: Colors.white12)),
       elevation: 0,
@@ -1530,7 +1549,7 @@ class _Dot extends StatelessWidget {
     return Container(
       height: 10,
       width: 10,
-      decoration: BoxDecoration(color: color, shape: BoxShape.circle, boxShadow: [BoxShadow(color: color.withOpacity(0.5), blurRadius: 8)]),
+      decoration: BoxDecoration(color: color, shape: BoxShape.circle, boxShadow: [BoxShadow(color: color.withValues(alpha: 0.5), blurRadius: 8)]),
     );
   }
 }

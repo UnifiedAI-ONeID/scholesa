@@ -117,7 +117,7 @@ class _RoleCard extends StatelessWidget {
       child: Container(
         decoration: BoxDecoration(
           gradient: LinearGradient(
-            colors: [color.withOpacity(0.85), color.withOpacity(0.55)],
+            colors: [color.withValues(alpha: 0.85), color.withValues(alpha: 0.55)],
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
           ),

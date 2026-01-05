@@ -22,21 +22,24 @@ void registerOfflineDispatchers(OfflineQueue queue) {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) return false;
     final payload = action.payload;
-    final String? siteId = _string(payload, 'siteId');
-    final String? sessionOccurrenceId = _string(payload, 'sessionOccurrenceId');
-    final String? learnerId = _string(payload, 'learnerId');
-    final String? recordedBy = _string(payload, 'recordedBy') ?? user.uid;
-    final String? status = _string(payload, 'status');
-    if ([siteId, sessionOccurrenceId, learnerId, recordedBy, status].any((String? v) => v == null || v.isEmpty)) {
+    final String? siteIdValue = _string(payload, 'siteId');
+    final String? sessionOccurrenceIdValue = _string(payload, 'sessionOccurrenceId');
+    final String? learnerIdValue = _string(payload, 'learnerId');
+    final String recordedBy = _string(payload, 'recordedBy') ?? user.uid;
+    final String status = _string(payload, 'status') ?? 'present';
+    if ([siteIdValue, sessionOccurrenceIdValue, learnerIdValue, recordedBy, status].any((String? v) => v == null || v.isEmpty)) {
       return false;
     }
+    final String siteId = siteIdValue!;
+    final String sessionOccurrenceId = sessionOccurrenceIdValue!;
+    final String learnerId = learnerIdValue!;
     final model = AttendanceRecordModel(
-      id: attendanceRepository.deterministicId(sessionOccurrenceId!, learnerId!),
-      siteId: siteId!,
+      id: attendanceRepository.deterministicId(sessionOccurrenceId, learnerId),
+      siteId: siteId,
       sessionOccurrenceId: sessionOccurrenceId,
       learnerId: learnerId,
-      status: status!,
-      recordedBy: recordedBy!,
+      status: status,
+      recordedBy: recordedBy,
       note: _string(payload, 'note'),
       createdAt: Timestamp.fromDate(action.createdAt),
       updatedAt: Timestamp.now(),
@@ -51,7 +54,7 @@ void registerOfflineDispatchers(OfflineQueue queue) {
           action: 'attendance.upsert',
           entityType: 'attendanceRecord',
           entityId: model.id,
-          siteId: siteId!,
+          siteId: siteId,
           details: {
             'sessionOccurrenceId': sessionOccurrenceId,
             'learnerId': learnerId,
@@ -70,19 +73,22 @@ void registerOfflineDispatchers(OfflineQueue queue) {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) return false;
     final payload = action.payload;
-    final String? siteId = _string(payload, 'siteId');
-    final String? missionId = _string(payload, 'missionId');
-    final String? learnerId = _string(payload, 'learnerId') ?? user.uid;
-    final String? status = _string(payload, 'status') ?? 'submitted';
-    if ([siteId, missionId, learnerId].any((String? v) => v == null || v.isEmpty)) {
+    final String? siteIdValue = _string(payload, 'siteId');
+    final String? missionIdValue = _string(payload, 'missionId');
+    final String learnerIdValue = _string(payload, 'learnerId') ?? user.uid;
+    final String status = _string(payload, 'status') ?? 'submitted';
+    if ([siteIdValue, missionIdValue].any((String? v) => v == null || v.isEmpty) || learnerIdValue.isEmpty) {
       return false;
     }
+    final String siteId = siteIdValue!;
+    final String missionId = missionIdValue!;
+    final String learnerId = learnerIdValue;
     final model = MissionAttemptModel(
       id: action.id,
-      siteId: siteId!,
-      missionId: missionId!,
-      learnerId: learnerId!,
-      status: status!,
+      siteId: siteId,
+      missionId: missionId,
+      learnerId: learnerId,
+      status: status,
       sessionOccurrenceId: _string(payload, 'sessionOccurrenceId'),
       reflection: _string(payload, 'reflection'),
       artifactUrls: _stringList(payload, 'artifactUrls'),
@@ -100,10 +106,10 @@ void registerOfflineDispatchers(OfflineQueue queue) {
           action: 'missionAttempt.upsert',
           entityType: 'missionAttempt',
           entityId: model.id,
-          siteId: siteId!,
+          siteId: siteId,
           details: {
-            'missionId': missionId!,
-            'status': status!,
+            'missionId': missionId,
+            'status': status,
           },
           createdAt: Timestamp.now(),
         ),
@@ -118,17 +124,20 @@ void registerOfflineDispatchers(OfflineQueue queue) {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) return false;
     final payload = action.payload;
-    final String? siteId = _string(payload, 'siteId');
-    final String? learnerId = _string(payload, 'learnerId') ?? user.uid;
-    final String? title = _string(payload, 'title');
-    if ([siteId, learnerId, title].any((String? v) => v == null || v.isEmpty)) {
+    final String? siteIdValue = _string(payload, 'siteId');
+    final String learnerIdValue = _string(payload, 'learnerId') ?? user.uid;
+    final String? titleValue = _string(payload, 'title');
+    if ([siteIdValue, titleValue].any((String? v) => v == null || v.isEmpty) || learnerIdValue.isEmpty) {
       return false;
     }
+    final String siteId = siteIdValue!;
+    final String learnerId = learnerIdValue;
+    final String title = titleValue!;
     final model = PortfolioItemModel(
       id: action.id,
-      siteId: siteId!,
-      learnerId: learnerId!,
-      title: title!,
+      siteId: siteId,
+      learnerId: learnerId,
+      title: title,
       description: _string(payload, 'description'),
       pillarCodes: _stringList(payload, 'pillarCodes'),
       artifactUrls: _stringList(payload, 'artifactUrls'),
@@ -146,7 +155,7 @@ void registerOfflineDispatchers(OfflineQueue queue) {
           action: 'portfolioItem.upsert',
           entityType: 'portfolioItem',
           entityId: model.id,
-          siteId: siteId!,
+          siteId: siteId,
           details: {
             'learnerId': learnerId,
             'missionId': _string(payload, 'missionId'),
