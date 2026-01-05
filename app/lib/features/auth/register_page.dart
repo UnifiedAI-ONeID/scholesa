@@ -150,7 +150,7 @@ class _RegisterPageState extends State<RegisterPage> {
         hintText: hint,
         hintStyle: const TextStyle(color: Colors.white38),
         filled: true,
-        fillColor: Colors.white.withOpacity(0.05),
+        fillColor: Colors.white.withValues(alpha: 0.05),
         enabledBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(14),
           borderSide: const BorderSide(color: Colors.white24),
@@ -168,7 +168,7 @@ class _RegisterPageState extends State<RegisterPage> {
 Widget _glassCard({required Widget child}) {
   return Container(
     decoration: BoxDecoration(
-      color: Colors.white.withOpacity(0.06),
+      color: Colors.white.withValues(alpha: 0.06),
       borderRadius: BorderRadius.circular(18),
       border: Border.all(color: Colors.white10),
       boxShadow: const [BoxShadow(color: Colors.black45, blurRadius: 18, offset: Offset(0, 12))],

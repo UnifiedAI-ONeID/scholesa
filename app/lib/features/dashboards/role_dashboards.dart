@@ -235,7 +235,7 @@ class RoleDashboard extends StatelessWidget {
                             children: [
                               Text(
                                 'Active role',
-                                style: TextStyle(color: Colors.white.withOpacity(0.8), fontSize: 12, fontWeight: FontWeight.w600),
+                                style: TextStyle(color: Colors.white.withValues(alpha: 0.8), fontSize: 12, fontWeight: FontWeight.w600),
                               ),
                               const SizedBox(height: 6),
                               Text(
@@ -255,7 +255,7 @@ class RoleDashboard extends StatelessWidget {
                         Container(
                           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                           decoration: BoxDecoration(
-                            color: Colors.white.withOpacity(0.15),
+                            color: Colors.white.withValues(alpha: 0.15),
                             borderRadius: BorderRadius.circular(12),
                             border: Border.all(color: Colors.white24),
                           ),
@@ -284,7 +284,7 @@ class RoleDashboard extends StatelessWidget {
                     Container(
                       padding: const EdgeInsets.all(12),
                       decoration: BoxDecoration(
-                        color: Colors.white.withOpacity(0.06),
+                        color: Colors.white.withValues(alpha: 0.06),
                         borderRadius: BorderRadius.circular(14),
                         border: Border.all(color: Colors.white10),
                       ),
@@ -313,7 +313,7 @@ class RoleDashboard extends StatelessWidget {
                                 labelText: 'Site',
                                 labelStyle: const TextStyle(color: Colors.white70),
                                 filled: true,
-                                fillColor: Colors.white.withOpacity(0.05),
+                                fillColor: Colors.white.withValues(alpha: 0.05),
                                 enabledBorder: OutlineInputBorder(
                                   borderRadius: BorderRadius.circular(12),
                                   borderSide: const BorderSide(color: Colors.white24),
@@ -336,7 +336,7 @@ class RoleDashboard extends StatelessWidget {
                         .map(
                           (String label) => Chip(
                             label: Text(label),
-                            backgroundColor: Colors.white.withOpacity(0.08),
+                            backgroundColor: Colors.white.withValues(alpha: 0.08),
                             labelStyle: const TextStyle(color: Colors.white, fontWeight: FontWeight.w600),
                             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12), side: const BorderSide(color: Colors.white24)),
                           ),
@@ -373,11 +373,11 @@ class _OfflineQueueCard extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: Colors.white.withOpacity(0.06),
+        color: Colors.white.withValues(alpha: 0.06),
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.white.withOpacity(0.08)),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
         boxShadow: [
-          BoxShadow(color: Colors.black.withOpacity(0.35), blurRadius: 24, offset: const Offset(0, 12)),
+          BoxShadow(color: Colors.black.withValues(alpha: 0.35), blurRadius: 24, offset: const Offset(0, 12)),
         ],
         gradient: const LinearGradient(
           colors: [Color(0xFF0B1224), Color(0xFF111827)],
@@ -409,22 +409,22 @@ class _OfflineQueueCard extends StatelessWidget {
                     isOffline
                         ? 'You are offline. Actions queue safely.'
                         : 'Online. Queued actions will flush.',
-                    style: TextStyle(color: Colors.white.withOpacity(0.7)),
+                    style: TextStyle(color: Colors.white.withValues(alpha: 0.7)),
                   ),
                 ],
               ),
               const Spacer(),
               Chip(
                 label: Text('$pendingCount queued', style: const TextStyle(color: Colors.white)),
-                backgroundColor: Colors.white.withOpacity(0.1),
-                shape: StadiumBorder(side: BorderSide(color: Colors.white.withOpacity(0.15))),
+                backgroundColor: Colors.white.withValues(alpha: 0.1),
+                shape: StadiumBorder(side: BorderSide(color: Colors.white.withValues(alpha: 0.15))),
               ),
             ],
           ),
           const SizedBox(height: 12),
           Text(
             'Log an action even when offline; we will sync the moment you reconnect. Use this to demo the queue while data wiring is in progress.',
-            style: TextStyle(color: Colors.white.withOpacity(0.8)),
+            style: TextStyle(color: Colors.white.withValues(alpha: 0.8)),
           ),
           const SizedBox(height: 12),
           SizedBox(
