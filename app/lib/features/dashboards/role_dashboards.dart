@@ -153,12 +153,12 @@ class RoleDashboard extends StatelessWidget {
             child: ConstrainedBox(
               constraints: const BoxConstraints(maxWidth: 780),
               child: ListView(
-                padding: const EdgeInsets.all(16),
+                padding: const EdgeInsets.fromLTRB(16, 16, 16, 28),
                 children: <Widget>[
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Column(
+                  LayoutBuilder(
+                    builder: (context, constraints) {
+                      final isCompact = constraints.maxWidth < 420;
+                      final header = Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(
@@ -166,21 +166,45 @@ class RoleDashboard extends StatelessWidget {
                             style: const TextStyle(color: Colors.white, fontSize: 24, fontWeight: FontWeight.w800),
                           ),
                           const SizedBox(height: 4),
-                          Text(
+                          const Text(
                             'Aligned to Future Skills, Leadership & Agency, Impact & Innovation.',
-                            style: const TextStyle(color: Colors.white70),
+                            style: TextStyle(color: Colors.white70),
                           ),
                         ],
-                      ),
-                      IconButton(
+                      );
+
+                      final signOut = IconButton(
                         icon: const Icon(Icons.logout, color: Colors.white70),
                         onPressed: () {
                           AuthService().signOut();
                           appState.clearRole();
                           Navigator.pushNamedAndRemoveUntil(context, '/login', (route) => false);
                         },
-                      ),
-                    ],
+                      );
+
+                      if (isCompact) {
+                        return Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            header,
+                            const SizedBox(height: 12),
+                            Align(
+                              alignment: Alignment.centerLeft,
+                              child: signOut,
+                            ),
+                          ],
+                        );
+                      }
+
+                      return Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        crossAxisAlignment: CrossAxisAlignment.center,
+                        children: [
+                          Expanded(child: header),
+                          signOut,
+                        ],
+                      );
+                    },
                   ),
                   const SizedBox(height: 12),
                   _OfflineQueueCard(queue: queue, offline: offline),

@@ -37,92 +37,102 @@ class LandingPage extends StatelessWidget {
               child: _Glow(radius: 240, colors: [Color(0xFFF59E0B), Color(0xFFF472B6)]),
             ),
             SafeArea(
-              child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Row(
+              child: LayoutBuilder(
+                builder: (context, constraints) {
+                  return SingleChildScrollView(
+                    padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom + 24),
+                    child: ConstrainedBox(
+                      constraints: BoxConstraints(minHeight: constraints.maxHeight),
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Container(
-                              height: 44,
-                              width: 44,
-                              decoration: const BoxDecoration(
-                                shape: BoxShape.circle,
-                                gradient: LinearGradient(colors: [Color(0xFF6366F1), Color(0xFF06B6D4)]),
-                              ),
-                              alignment: Alignment.center,
-                              child: const Text('S', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w800)),
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                Row(
+                                  children: [
+                                    Container(
+                                      height: 44,
+                                      width: 44,
+                                      decoration: const BoxDecoration(
+                                        shape: BoxShape.circle,
+                                        gradient: LinearGradient(colors: [Color(0xFF6366F1), Color(0xFF06B6D4)]),
+                                      ),
+                                      alignment: Alignment.center,
+                                      child: const Text('S', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w800)),
+                                    ),
+                                    const SizedBox(width: 12),
+                                    Text('Scholesa', style: Theme.of(context).textTheme.titleLarge?.copyWith(color: Colors.white, fontWeight: FontWeight.bold)),
+                                  ],
+                                ),
+                                TextButton(
+                                  onPressed: () => Navigator.pushNamed(context, '/login'),
+                                  style: TextButton.styleFrom(foregroundColor: Colors.white, padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10)),
+                                  child: const Text('Login'),
+                                ),
+                              ],
                             ),
-                            const SizedBox(width: 12),
-                            Text('Scholesa', style: Theme.of(context).textTheme.titleLarge?.copyWith(color: Colors.white, fontWeight: FontWeight.bold)),
+                            const SizedBox(height: 32),
+                            Text(
+                              'Education 2.0 for Future Skills, Leadership, and Impact.',
+                              style: Theme.of(context).textTheme.headlineSmall?.copyWith(color: Colors.white, fontWeight: FontWeight.w800, letterSpacing: -0.4),
+                            ),
+                            const SizedBox(height: 14),
+                            Text(
+                              'Missions, dashboards, and portfolios in one place for learners, educators, parents, sites, partners, and HQ.',
+                              style: Theme.of(context).textTheme.bodyLarge?.copyWith(color: Colors.white70, height: 1.5),
+                            ),
+                            const SizedBox(height: 22),
+                            Wrap(
+                              spacing: 12,
+                              runSpacing: 12,
+                              children: const [
+                                _PillarChip(label: 'Future Skills', gradient: [Color(0xFF38BDF8), Color(0xFF6366F1)]),
+                                _PillarChip(label: 'Leadership & Agency', gradient: [Color(0xFFF472B6), Color(0xFFF97316)]),
+                                _PillarChip(label: 'Impact & Innovation', gradient: [Color(0xFF22C55E), Color(0xFF06B6D4)]),
+                              ],
+                            ),
+                            const Spacer(),
+                            Row(
+                              children: [
+                                Expanded(
+                                  child: ElevatedButton(
+                                    onPressed: () => Navigator.pushNamed(context, '/register'),
+                                    style: ElevatedButton.styleFrom(
+                                      backgroundColor: Colors.transparent,
+                                      shadowColor: Colors.transparent,
+                                      padding: const EdgeInsets.symmetric(vertical: 16),
+                                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                                    ).copyWith(
+                                        backgroundColor: WidgetStateProperty.all(const Color(0xFFF59E0B)),
+                                        foregroundColor: WidgetStateProperty.all(const Color(0xFF0B1224)),
+                                    ),
+                                    child: const Text('Get started', style: TextStyle(fontWeight: FontWeight.w700)),
+                                  ),
+                                ),
+                                const SizedBox(width: 12),
+                                Expanded(
+                                  child: OutlinedButton(
+                                    onPressed: () => Navigator.pushNamed(context, '/login'),
+                                    style: OutlinedButton.styleFrom(
+                                      foregroundColor: Colors.white,
+                                      side: const BorderSide(color: Colors.white38),
+                                      padding: const EdgeInsets.symmetric(vertical: 16),
+                                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                                    ),
+                                    child: const Text('I already have an account'),
+                                  ),
+                                ),
+                              ],
+                            ),
                           ],
                         ),
-                        TextButton(
-                          onPressed: () => Navigator.pushNamed(context, '/login'),
-                          style: TextButton.styleFrom(foregroundColor: Colors.white, padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10)),
-                          child: const Text('Login'),
-                        ),
-                      ],
+                      ),
                     ),
-                    const SizedBox(height: 32),
-                    Text(
-                      'Education 2.0 for Future Skills, Leadership, and Impact.',
-                      style: Theme.of(context).textTheme.headlineSmall?.copyWith(color: Colors.white, fontWeight: FontWeight.w800, letterSpacing: -0.4),
-                    ),
-                    const SizedBox(height: 14),
-                    Text(
-                      'Missions, dashboards, and portfolios in one place for learners, educators, parents, sites, partners, and HQ.',
-                      style: Theme.of(context).textTheme.bodyLarge?.copyWith(color: Colors.white70, height: 1.5),
-                    ),
-                    const SizedBox(height: 22),
-                    Wrap(
-                      spacing: 12,
-                      runSpacing: 12,
-                      children: const [
-                        _PillarChip(label: 'Future Skills', gradient: [Color(0xFF38BDF8), Color(0xFF6366F1)]),
-                        _PillarChip(label: 'Leadership & Agency', gradient: [Color(0xFFF472B6), Color(0xFFF97316)]),
-                        _PillarChip(label: 'Impact & Innovation', gradient: [Color(0xFF22C55E), Color(0xFF06B6D4)]),
-                      ],
-                    ),
-                    const Spacer(),
-                    Row(
-                      children: [
-                        Expanded(
-                          child: ElevatedButton(
-                            onPressed: () => Navigator.pushNamed(context, '/register'),
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: Colors.transparent,
-                              shadowColor: Colors.transparent,
-                              padding: const EdgeInsets.symmetric(vertical: 16),
-                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-                            ).copyWith(
-                                backgroundColor: WidgetStateProperty.all(const Color(0xFFF59E0B)),
-                                foregroundColor: WidgetStateProperty.all(const Color(0xFF0B1224)),
-                            ),
-                            child: const Text('Get started', style: TextStyle(fontWeight: FontWeight.w700)),
-                          ),
-                        ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: OutlinedButton(
-                            onPressed: () => Navigator.pushNamed(context, '/login'),
-                            style: OutlinedButton.styleFrom(
-                              foregroundColor: Colors.white,
-                              side: const BorderSide(color: Colors.white38),
-                              padding: const EdgeInsets.symmetric(vertical: 16),
-                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-                            ),
-                            child: const Text('I already have an account'),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
+                  );
+                },
               ),
             ),
           ],

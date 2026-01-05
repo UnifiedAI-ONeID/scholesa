@@ -83,77 +83,82 @@ class _LoginPageState extends State<LoginPage> {
       begin: Alignment.topLeft,
       end: Alignment.bottomRight,
     );
+    final bottomInset = MediaQuery.of(context).viewInsets.bottom;
     return Scaffold(
       body: Container(
         decoration: BoxDecoration(gradient: gradient),
         child: SafeArea(
-          child: Center(
-            child: ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 520),
-              child: Padding(
-                padding: const EdgeInsets.all(20),
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: <Widget>[
-                    const Text(
-                      'Welcome back',
-                      style: TextStyle(color: Colors.white, fontSize: 28, fontWeight: FontWeight.w800),
+          child: LayoutBuilder(
+            builder: (context, constraints) {
+              return SingleChildScrollView(
+                padding: EdgeInsets.fromLTRB(20, 20, 20, 24 + bottomInset),
+                child: Center(
+                  child: ConstrainedBox(
+                    constraints: BoxConstraints(maxWidth: 520, minHeight: constraints.maxHeight),
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: <Widget>[
+                        const Text(
+                          'Welcome back',
+                          style: TextStyle(color: Colors.white, fontSize: 28, fontWeight: FontWeight.w800),
+                        ),
+                        const SizedBox(height: 6),
+                        const Text(
+                          'Sign in to access your role dashboards.',
+                          style: TextStyle(color: Colors.white70),
+                        ),
+                        const SizedBox(height: 24),
+                        _glassCard(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            children: [
+                              _label('Email address'),
+                              const SizedBox(height: 8),
+                              _field(
+                                controller: emailController,
+                                keyboardType: TextInputType.emailAddress,
+                                hint: 'you@example.com',
+                              ),
+                              const SizedBox(height: 14),
+                              _label('Password'),
+                              const SizedBox(height: 8),
+                              _field(
+                                controller: passwordController,
+                                obscure: true,
+                                hint: '••••••••',
+                              ),
+                              const SizedBox(height: 14),
+                              if (error != null)
+                                Padding(
+                                  padding: const EdgeInsets.only(bottom: 8),
+                                  child: Text(error!, style: const TextStyle(color: Colors.redAccent)),
+                                ),
+                              ElevatedButton(
+                                onPressed: loading ? null : _submit,
+                                style: ElevatedButton.styleFrom(
+                                  padding: const EdgeInsets.symmetric(vertical: 14),
+                                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                                  backgroundColor: const Color(0xFF38BDF8),
+                                  foregroundColor: const Color(0xFF0B1224),
+                                ),
+                                child: loading
+                                    ? const SizedBox(height: 20, width: 20, child: CircularProgressIndicator(strokeWidth: 2))
+                                    : const Text('Continue', style: TextStyle(fontWeight: FontWeight.w700)),
+                              ),
+                              TextButton(
+                                onPressed: loading ? null : () => Navigator.pushNamed(context, '/register'),
+                                child: const Text('Need an account? Register', style: TextStyle(color: Colors.white70)),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
                     ),
-                    const SizedBox(height: 6),
-                    const Text(
-                      'Sign in to access your role dashboards.',
-                      style: TextStyle(color: Colors.white70),
-                    ),
-                    const SizedBox(height: 24),
-                    _glassCard(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.stretch,
-                        children: [
-                          _label('Email address'),
-                          const SizedBox(height: 8),
-                          _field(
-                            controller: emailController,
-                            keyboardType: TextInputType.emailAddress,
-                            hint: 'you@example.com',
-                          ),
-                          const SizedBox(height: 14),
-                          _label('Password'),
-                          const SizedBox(height: 8),
-                          _field(
-                            controller: passwordController,
-                            obscure: true,
-                            hint: '••••••••',
-                          ),
-                          const SizedBox(height: 14),
-                          if (error != null)
-                            Padding(
-                              padding: const EdgeInsets.only(bottom: 8),
-                              child: Text(error!, style: const TextStyle(color: Colors.redAccent)),
-                            ),
-                          ElevatedButton(
-                            onPressed: loading ? null : _submit,
-                            style: ElevatedButton.styleFrom(
-                              padding: const EdgeInsets.symmetric(vertical: 14),
-                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-                              backgroundColor: const Color(0xFF38BDF8),
-                              foregroundColor: const Color(0xFF0B1224),
-                            ),
-                            child: loading
-                                ? const SizedBox(height: 20, width: 20, child: CircularProgressIndicator(strokeWidth: 2))
-                                : const Text('Continue', style: TextStyle(fontWeight: FontWeight.w700)),
-                          ),
-                          TextButton(
-                            onPressed: loading ? null : () => Navigator.pushNamed(context, '/register'),
-                            child: const Text('Need an account? Register', style: TextStyle(color: Colors.white70)),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
+                  ),
                 ),
-              ),
-            ),
+              );
+            },
           ),
         ),
       ),
