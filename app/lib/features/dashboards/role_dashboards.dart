@@ -1,6 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 
 import '../../domain/repositories.dart';
@@ -206,6 +207,8 @@ class RoleDashboard extends StatelessWidget {
                   if ((currentRole == 'site' || currentRole == 'hq') && activeSiteId != null) ...[
                     const SizedBox(height: 12),
                     _AdminProvisioningCard(siteId: activeSiteId, appState: appState),
+                    const SizedBox(height: 12),
+                    _UserManagementCard(siteId: activeSiteId, appState: appState),
                   ],
                   if (currentRole == 'site' && activeSiteId != null) ...[
                     const SizedBox(height: 12),
@@ -805,7 +808,10 @@ class _AttendanceFormState extends State<_AttendanceForm> {
               },
             ),
           ),
-          _AttendanceRecentList(records: _recent.take(10).toList()),
+          _AttendanceRecentList(
+            records: _recent.take(20).toList(),
+            filterOccurrenceId: _selectedOccurrenceId,
+          ),
         ],
       ),
     );
@@ -813,13 +819,17 @@ class _AttendanceFormState extends State<_AttendanceForm> {
 }
 
 class _AttendanceRecentList extends StatelessWidget {
-  const _AttendanceRecentList({required this.records});
+  const _AttendanceRecentList({required this.records, this.filterOccurrenceId});
 
   final List<AttendanceRecordModel> records;
+  final String? filterOccurrenceId;
 
   @override
   Widget build(BuildContext context) {
-    if (records.isEmpty) {
+    final filtered = filterOccurrenceId == null
+        ? records
+        : records.where((r) => r.sessionOccurrenceId == filterOccurrenceId).toList();
+    if (filtered.isEmpty) {
       return const SizedBox.shrink();
     }
     return Column(
@@ -837,10 +847,10 @@ class _AttendanceRecentList extends StatelessWidget {
           child: ListView.separated(
             shrinkWrap: true,
             physics: const NeverScrollableScrollPhysics(),
-            itemCount: records.length,
+            itemCount: filtered.length,
             separatorBuilder: (_, unused) => const Divider(color: Colors.white10, height: 1),
             itemBuilder: (context, index) {
-              final r = records[index];
+              final r = filtered[index];
               return ListTile(
                 dense: true,
                 title: Text('${r.sessionOccurrenceId} • ${r.learnerId}', style: const TextStyle(color: Colors.white)),
@@ -1444,6 +1454,213 @@ class _ProvisionedList extends StatelessWidget {
   }
 }
 
+class _UserManagementCard extends StatefulWidget {
+  const _UserManagementCard({required this.siteId, required this.appState});
+
+  final String siteId;
+  final AppState appState;
+
+  @override
+  State<_UserManagementCard> createState() => _UserManagementCardState();
+}
+
+class _UserManagementCardState extends State<_UserManagementCard> {
+  final TextEditingController _search = TextEditingController();
+  bool _loading = false;
+  List<UserModel> _users = <UserModel>[];
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  @override
+  void dispose() {
+    _search.dispose();
+    super.dispose();
+  }
+
+  Future<void> _load() async {
+    setState(() => _loading = true);
+    try {
+      final snap = await FirebaseFirestore.instance
+          .collection('users')
+          .where('siteIds', arrayContains: widget.siteId)
+          .orderBy('createdAt', descending: true)
+          .limit(50)
+          .get();
+      final users = snap.docs.map(UserModel.fromDoc).toList();
+      if (mounted) setState(() => _users = users);
+    } finally {
+      if (mounted) setState(() => _loading = false);
+    }
+  }
+
+  Future<void> _updateRole(UserModel user, String role) async {
+    final actorId = widget.appState.user?.uid ?? FirebaseAuth.instance.currentUser?.uid;
+    if (actorId == null) return;
+    await FirebaseFirestore.instance.collection('users').doc(user.id).update({
+      'role': role,
+      'updatedAt': Timestamp.now(),
+    });
+    await AuditLogRepository().log(
+      AuditLogModel(
+        id: 'audit-user-role-${user.id}-${DateTime.now().millisecondsSinceEpoch}',
+        actorId: actorId,
+        actorRole: widget.appState.role ?? 'site',
+        action: 'user.role.update',
+        entityType: 'user',
+        entityId: user.id,
+        siteId: widget.siteId,
+        details: {'newRole': role},
+        createdAt: Timestamp.now(),
+      ),
+    );
+    if (!mounted) return;
+    _toast(context, 'Role updated');
+    _load();
+  }
+
+  Future<void> _addSite(UserModel user) async {
+    await FirebaseFirestore.instance.collection('users').doc(user.id).update({
+      'siteIds': FieldValue.arrayUnion(<String>[widget.siteId]),
+      'updatedAt': Timestamp.now(),
+    });
+    if (!mounted) return;
+    _toast(context, 'Added to site');
+    _load();
+  }
+
+  Future<void> _removeSite(UserModel user) async {
+    await FirebaseFirestore.instance.collection('users').doc(user.id).update({
+      'siteIds': FieldValue.arrayRemove(<String>[widget.siteId]),
+      'updatedAt': Timestamp.now(),
+    });
+    if (!mounted) return;
+    _toast(context, 'Removed from site');
+    _load();
+  }
+
+  Future<void> _setActiveSite(UserModel user) async {
+    await FirebaseFirestore.instance.collection('users').doc(user.id).update({
+      'activeSiteId': widget.siteId,
+      'updatedAt': Timestamp.now(),
+    });
+    if (!mounted) return;
+    _toast(context, 'Active site updated');
+    _load();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final filtered = _users.where((u) {
+      final term = _search.text.trim().toLowerCase();
+      if (term.isEmpty) return true;
+      return u.id.toLowerCase().contains(term) || u.email.toLowerCase().contains(term);
+    }).toList();
+
+    return _GlassCard(
+      title: 'User management',
+      subtitle: 'View and adjust users scoped to this site.',
+      child: Column(
+        children: [
+          Row(
+            children: [
+              Expanded(child: _TextField(controller: _search, label: 'Search by email or ID', hint: 'user@example.com')),
+              const SizedBox(width: 8),
+              IconButton(
+                onPressed: _loading ? null : _load,
+                icon: _loading
+                    ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))
+                    : const Icon(Icons.refresh, color: Colors.white),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          if (_loading)
+            const Align(
+              alignment: Alignment.centerLeft,
+              child: Padding(
+                padding: EdgeInsets.only(bottom: 8),
+                child: Row(
+                  children: [
+                    SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2)),
+                    SizedBox(width: 8),
+                    Text('Loading users...', style: TextStyle(color: Colors.white70)),
+                  ],
+                ),
+              ),
+            ),
+          if (!_loading && filtered.isEmpty)
+            Text('No users for this site yet.', style: TextStyle(color: Colors.white.withValues(alpha: 0.7))),
+          ListView.separated(
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            itemCount: filtered.length,
+            separatorBuilder: (_, unused) => const Divider(color: Colors.white12, height: 1),
+            itemBuilder: (context, index) {
+              final user = filtered[index];
+              final isMember = user.siteIds.contains(widget.siteId);
+              return ListTile(
+                dense: true,
+                title: Text('${user.email} • ${user.id}', style: const TextStyle(color: Colors.white)),
+                subtitle: Text(
+                  'Role: ${user.role} • Sites: ${user.siteIds.join(', ')}${user.activeSiteId != null ? ' • Active: ${user.activeSiteId}' : ''}',
+                  style: const TextStyle(color: Colors.white70),
+                ),
+                trailing: SizedBox(
+                  width: 240,
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.end,
+                    children: [
+                      DropdownButton<String>(
+                        value: user.role,
+                        dropdownColor: const Color(0xFF0F172A),
+                        underline: const SizedBox.shrink(),
+                        items: const [
+                          DropdownMenuItem(value: 'learner', child: Text('Learner')),
+                          DropdownMenuItem(value: 'educator', child: Text('Educator')),
+                          DropdownMenuItem(value: 'parent', child: Text('Parent')),
+                          DropdownMenuItem(value: 'site', child: Text('Site')),
+                          DropdownMenuItem(value: 'partner', child: Text('Partner')),
+                          DropdownMenuItem(value: 'hq', child: Text('HQ')),
+                        ],
+                        onChanged: (value) {
+                          if (value != null && value != user.role) {
+                            _updateRole(user, value);
+                          }
+                        },
+                        iconEnabledColor: Colors.white,
+                        style: const TextStyle(color: Colors.white),
+                      ),
+                      IconButton(
+                        tooltip: 'Add to site',
+                        onPressed: isMember ? null : () => _addSite(user),
+                        icon: const Icon(Icons.add_home_work, color: Colors.white70, size: 20),
+                      ),
+                      IconButton(
+                        tooltip: 'Remove from site',
+                        onPressed: isMember ? () => _removeSite(user) : null,
+                        icon: const Icon(Icons.remove_circle_outline, color: Colors.white70, size: 20),
+                      ),
+                      IconButton(
+                        tooltip: 'Set active site',
+                        onPressed: () => _setActiveSite(user),
+                        icon: const Icon(Icons.push_pin, color: Colors.white70, size: 20),
+                      ),
+                    ],
+                  ),
+                ),
+              );
+            },
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 class _ParentSummaryCard extends StatefulWidget {
   const _ParentSummaryCard({required this.appState, this.siteId});
 
@@ -1561,6 +1778,12 @@ class _MissionListCardState extends State<_MissionListCard> {
                       dense: true,
                       title: Text(m.title, style: const TextStyle(color: Colors.white)),
                       subtitle: Text('$scope • $pillars', style: const TextStyle(color: Colors.white70)),
+                      onTap: () {
+                        Clipboard.setData(ClipboardData(text: m.id));
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(content: Text('Mission ID ${m.id} copied. Paste into the form above.')),
+                        );
+                      },
                     );
                   },
                 ),

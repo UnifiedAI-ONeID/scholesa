@@ -18,6 +18,8 @@ class _RegisterPageState extends State<RegisterPage> {
   final AuthService _auth = AuthService();
   bool loading = false;
   String? error;
+  bool showPassword = false;
+  bool showConfirm = false;
 
   @override
   void dispose() {
@@ -37,14 +39,23 @@ class _RegisterPageState extends State<RegisterPage> {
       error = null;
     });
     try {
-      await _auth.register(
+      final user = await _auth.register(
         email: emailController.text.trim(),
         password: passwordController.text.trim(),
       );
       if (!mounted) return;
+      if (user != null) {
+        final ok = await _showBotHoldDialog();
+        if (!ok) {
+          setState(() => error = 'Bot check cancelled.');
+          return;
+        }
+      }
+      if (!mounted) return;
       context.read<AppState>().clearRole();
       Navigator.pushReplacementNamed(context, '/roles');
     } catch (e) {
+      if (!mounted) return;
       setState(() => error = 'Registration failed. Try again.');
     } finally {
       if (mounted) {
@@ -90,15 +101,16 @@ class _RegisterPageState extends State<RegisterPage> {
                             controller: emailController,
                             keyboardType: TextInputType.emailAddress,
                             hint: 'you@example.com',
+                            isConfirm: false,
                           ),
                           const SizedBox(height: 14),
                           _label('Password'),
                           const SizedBox(height: 8),
-                          _field(controller: passwordController, obscure: true, hint: '••••••••'),
+                          _field(controller: passwordController, obscure: true, hint: '••••••••', isConfirm: false),
                           const SizedBox(height: 14),
                           _label('Confirm password'),
                           const SizedBox(height: 8),
-                          _field(controller: confirmController, obscure: true, hint: '••••••••'),
+                          _field(controller: confirmController, obscure: true, hint: '••••••••', isConfirm: true),
                           const SizedBox(height: 14),
                           if (error != null)
                             Padding(
@@ -140,12 +152,13 @@ class _RegisterPageState extends State<RegisterPage> {
     required TextEditingController controller,
     bool obscure = false,
     required String hint,
+    required bool isConfirm,
     TextInputType keyboardType = TextInputType.text,
   }) {
     return TextField(
       controller: controller,
       keyboardType: keyboardType,
-      obscureText: obscure,
+      obscureText: obscure && !(isConfirm ? showConfirm : showPassword),
       decoration: InputDecoration(
         hintText: hint,
         hintStyle: const TextStyle(color: Colors.white38),
@@ -159,9 +172,56 @@ class _RegisterPageState extends State<RegisterPage> {
           borderRadius: BorderRadius.circular(14),
           borderSide: const BorderSide(color: Color(0xFFF59E0B)),
         ),
+        suffixIcon: obscure
+            ? IconButton(
+                onPressed: () => setState(() {
+                  if (isConfirm) {
+                    showConfirm = !showConfirm;
+                  } else {
+                    showPassword = !showPassword;
+                  }
+                }),
+                icon: Icon(
+                  (isConfirm ? showConfirm : showPassword) ? Icons.visibility_off : Icons.visibility,
+                  color: Colors.white70,
+                ),
+              )
+            : null,
       ),
       style: const TextStyle(color: Colors.white),
     );
+  }
+
+  Future<bool> _showBotHoldDialog() async {
+    return await showDialog<bool>(
+          context: context,
+          barrierDismissible: false,
+          builder: (context) {
+            return AlertDialog(
+              backgroundColor: const Color(0xFF0F172A),
+              title: const Text('Human check', style: TextStyle(color: Colors.white)),
+              content: const Text('Press and hold to continue.', style: TextStyle(color: Colors.white70)),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.of(context).pop(false),
+                  child: const Text('Cancel'),
+                ),
+                GestureDetector(
+                  onLongPress: () => Navigator.of(context).pop(true),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFF59E0B),
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: const Text('Press and hold', style: TextStyle(color: Color(0xFF0B1224), fontWeight: FontWeight.w700)),
+                  ),
+                ),
+              ],
+            );
+          },
+        ) ??
+        false;
   }
 }
 

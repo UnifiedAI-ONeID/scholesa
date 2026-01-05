@@ -1,3 +1,5 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
@@ -18,6 +20,7 @@ class _LoginPageState extends State<LoginPage> {
   final AuthService _auth = AuthService();
   bool loading = false;
   String? error;
+  bool showPassword = false;
 
   @override
   void dispose() {
@@ -32,13 +35,27 @@ class _LoginPageState extends State<LoginPage> {
       error = null;
     });
     try {
-      await _auth.signIn(
+      final user = await _auth.signIn(
         email: emailController.text.trim(),
         password: passwordController.text.trim(),
       );
       if (!mounted) return;
+      if (user == null) {
+        setState(() => error = 'Check your email or password and try again.');
+        return;
+      }
       final appState = context.read<AppState>();
       await appState.refreshEntitlements();
+      if (!mounted) return;
+      final requiresBotCheck = await _needsDormantBotCheck(user);
+      if (requiresBotCheck) {
+        final ok = await _showBotHoldDialog();
+        if (!ok) {
+          setState(() => error = 'Bot check cancelled.');
+          return;
+        }
+      }
+      await _updateLastLogin(user);
       if (!mounted) return;
       final ent = appState.entitlements;
       if (ent.length == 1) {
@@ -50,6 +67,7 @@ class _LoginPageState extends State<LoginPage> {
         Navigator.pushReplacementNamed(context, '/roles');
       }
     } catch (e) {
+      if (!mounted) return;
       setState(() => error = 'Check your email or password and try again.');
     } finally {
       if (mounted) {
@@ -153,7 +171,7 @@ class _LoginPageState extends State<LoginPage> {
     return TextField(
       controller: controller,
       keyboardType: keyboardType,
-      obscureText: obscure,
+      obscureText: obscure && !showPassword,
       decoration: InputDecoration(
         hintText: hint,
         hintStyle: const TextStyle(color: Colors.white38),
@@ -167,9 +185,74 @@ class _LoginPageState extends State<LoginPage> {
           borderRadius: BorderRadius.circular(14),
           borderSide: const BorderSide(color: Color(0xFF38BDF8)),
         ),
+        suffixIcon: obscure
+            ? IconButton(
+                onPressed: () => setState(() => showPassword = !showPassword),
+                icon: Icon(showPassword ? Icons.visibility_off : Icons.visibility, color: Colors.white70),
+              )
+            : null,
       ),
       style: const TextStyle(color: Colors.white),
     );
+  }
+
+  Future<bool> _needsDormantBotCheck(User user) async {
+    try {
+      final doc = await FirebaseFirestore.instance.collection('users').doc(user.uid).get();
+      final data = doc.data();
+      final lastLoginAt = data?['lastLoginAt'];
+      if (lastLoginAt is Timestamp) {
+        final last = lastLoginAt.toDate();
+        if (DateTime.now().difference(last) > const Duration(days: 30)) return true;
+        return false;
+      }
+      return true;
+    } catch (_) {
+      return true;
+    }
+  }
+
+  Future<void> _updateLastLogin(User user) async {
+    try {
+      await FirebaseFirestore.instance.collection('users').doc(user.uid).set(
+        <String, dynamic>{'lastLoginAt': Timestamp.now()},
+        SetOptions(merge: true),
+      );
+    } catch (_) {
+      // best effort
+    }
+  }
+
+  Future<bool> _showBotHoldDialog() async {
+    return await showDialog<bool>(
+          context: context,
+          barrierDismissible: false,
+          builder: (context) {
+            return AlertDialog(
+              backgroundColor: const Color(0xFF0F172A),
+              title: const Text('Human check', style: TextStyle(color: Colors.white)),
+              content: const Text('Press and hold to continue.', style: TextStyle(color: Colors.white70)),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.of(context).pop(false),
+                  child: const Text('Cancel'),
+                ),
+                GestureDetector(
+                  onLongPress: () => Navigator.of(context).pop(true),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF38BDF8),
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: const Text('Press and hold', style: TextStyle(color: Color(0xFF0B1224), fontWeight: FontWeight.w700)),
+                  ),
+                ),
+              ],
+            );
+          },
+        ) ??
+        false;
   }
 }
 
