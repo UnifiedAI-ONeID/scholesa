@@ -45,7 +45,7 @@ class CreateDemoUserUserInsert {
     return json;
   }
 
-  const CreateDemoUserUserInsert({
+  CreateDemoUserUserInsert({
     required this.id,
   });
 }
@@ -79,7 +79,7 @@ class CreateDemoUserData {
     return json;
   }
 
-  const CreateDemoUserData({
+  CreateDemoUserData({
     required this.user_insert,
   });
 }

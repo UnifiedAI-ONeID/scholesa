@@ -55,7 +55,7 @@ class ListMyTeamsTeams {
     return json;
   }
 
-  const ListMyTeamsTeams({
+  ListMyTeamsTeams({
     required this.id,
     required this.name,
     this.description,
@@ -93,7 +93,7 @@ class ListMyTeamsData {
     return json;
   }
 
-  const ListMyTeamsData({
+  ListMyTeamsData({
     required this.teams,
   });
 }

@@ -47,7 +47,7 @@ class UpdatePlayerJerseyNumberPlayerUpdate {
     return json;
   }
 
-  const UpdatePlayerJerseyNumberPlayerUpdate({
+  UpdatePlayerJerseyNumberPlayerUpdate({
     required this.id,
   });
 }
@@ -83,7 +83,7 @@ class UpdatePlayerJerseyNumberData {
     return json;
   }
 
-  const UpdatePlayerJerseyNumberData({
+  UpdatePlayerJerseyNumberData({
     this.player_update,
   });
 }
@@ -122,7 +122,7 @@ class UpdatePlayerJerseyNumberVariables {
     return json;
   }
 
-  const UpdatePlayerJerseyNumberVariables({
+  UpdatePlayerJerseyNumberVariables({
     required this.id,
     required this.jerseyNumber,
   });
