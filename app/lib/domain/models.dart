@@ -10,6 +10,8 @@ class UserModel {
     this.displayName,
     this.siteIds = const <String>[],
     this.activeSiteId,
+    this.provisionedBy,
+    this.provisionedAt,
     this.createdAt,
     this.updatedAt,
   });
@@ -20,6 +22,8 @@ class UserModel {
   final String? displayName;
   final List<String> siteIds;
   final String? activeSiteId;
+  final String? provisionedBy;
+  final Timestamp? provisionedAt;
   final Timestamp? createdAt;
   final Timestamp? updatedAt;
 
@@ -32,6 +36,8 @@ class UserModel {
       displayName: data['displayName'] as String?,
       siteIds: List<String>.from(data['siteIds'] as List? ?? const <String>[]),
       activeSiteId: data['activeSiteId'] as String?,
+      provisionedBy: data['provisionedBy'] as String?,
+      provisionedAt: data['provisionedAt'] as Timestamp?,
       createdAt: data['createdAt'] as Timestamp?,
       updatedAt: data['updatedAt'] as Timestamp?,
     );
@@ -43,6 +49,181 @@ class UserModel {
         'displayName': displayName,
         'siteIds': siteIds,
         'activeSiteId': activeSiteId,
+        'provisionedBy': provisionedBy,
+        'provisionedAt': provisionedAt,
+        'createdAt': createdAt ?? Timestamp.now(),
+        'updatedAt': updatedAt ?? Timestamp.now(),
+      };
+}
+
+@immutable
+class GuardianLinkModel {
+  const GuardianLinkModel({
+    required this.id,
+    required this.parentId,
+    required this.learnerId,
+    required this.siteId,
+    this.relationship,
+    this.isPrimary,
+    this.createdAt,
+    this.updatedAt,
+  });
+
+  final String id;
+  final String parentId;
+  final String learnerId;
+  final String siteId;
+  final String? relationship;
+  final bool? isPrimary;
+  final Timestamp? createdAt;
+  final Timestamp? updatedAt;
+
+  factory GuardianLinkModel.fromDoc(DocumentSnapshot<Map<String, dynamic>> doc) {
+    final data = doc.data() ?? <String, dynamic>{};
+    return GuardianLinkModel(
+      id: doc.id,
+      parentId: data['parentId'] as String? ?? '',
+      learnerId: data['learnerId'] as String? ?? '',
+      siteId: data['siteId'] as String? ?? '',
+      relationship: data['relationship'] as String?,
+      isPrimary: data['isPrimary'] as bool?,
+      createdAt: data['createdAt'] as Timestamp?,
+      updatedAt: data['updatedAt'] as Timestamp?,
+    );
+  }
+
+  Map<String, dynamic> toMap() => <String, dynamic>{
+        'parentId': parentId,
+        'learnerId': learnerId,
+        'siteId': siteId,
+        'relationship': relationship,
+        'isPrimary': isPrimary,
+        'createdAt': createdAt ?? Timestamp.now(),
+        'updatedAt': updatedAt ?? Timestamp.now(),
+      };
+}
+
+@immutable
+class LearnerProfileModel {
+  const LearnerProfileModel({
+    required this.id,
+    required this.learnerId,
+    required this.siteId,
+    this.legalName,
+    this.preferredName,
+    this.dateOfBirth,
+    this.gradeLevel,
+    this.strengths = const <String>[],
+    this.learningNeeds = const <String>[],
+    this.interests = const <String>[],
+    this.goals = const <String>[],
+    this.emergencyContact,
+    this.createdAt,
+    this.updatedAt,
+  });
+
+  final String id;
+  final String learnerId;
+  final String siteId;
+  final String? legalName;
+  final String? preferredName;
+  final String? dateOfBirth;
+  final String? gradeLevel;
+  final List<String> strengths;
+  final List<String> learningNeeds;
+  final List<String> interests;
+  final List<String> goals;
+  final Map<String, dynamic>? emergencyContact;
+  final Timestamp? createdAt;
+  final Timestamp? updatedAt;
+
+  factory LearnerProfileModel.fromDoc(DocumentSnapshot<Map<String, dynamic>> doc) {
+    final data = doc.data() ?? <String, dynamic>{};
+    return LearnerProfileModel(
+      id: doc.id,
+      learnerId: data['learnerId'] as String? ?? '',
+      siteId: data['siteId'] as String? ?? '',
+      legalName: data['legalName'] as String?,
+      preferredName: data['preferredName'] as String?,
+      dateOfBirth: data['dateOfBirth'] as String?,
+      gradeLevel: data['gradeLevel'] as String?,
+      strengths: List<String>.from(data['strengths'] as List? ?? const <String>[]),
+      learningNeeds: List<String>.from(data['learningNeeds'] as List? ?? const <String>[]),
+      interests: List<String>.from(data['interests'] as List? ?? const <String>[]),
+      goals: List<String>.from(data['goals'] as List? ?? const <String>[]),
+      emergencyContact: data['emergencyContact'] as Map<String, dynamic>?,
+      createdAt: data['createdAt'] as Timestamp?,
+      updatedAt: data['updatedAt'] as Timestamp?,
+    );
+  }
+
+  Map<String, dynamic> toMap() => <String, dynamic>{
+        'learnerId': learnerId,
+        'siteId': siteId,
+        'legalName': legalName,
+        'preferredName': preferredName,
+        'dateOfBirth': dateOfBirth,
+        'gradeLevel': gradeLevel,
+        'strengths': strengths,
+        'learningNeeds': learningNeeds,
+        'interests': interests,
+        'goals': goals,
+        'emergencyContact': emergencyContact,
+        'createdAt': createdAt ?? Timestamp.now(),
+        'updatedAt': updatedAt ?? Timestamp.now(),
+      };
+}
+
+@immutable
+class ParentProfileModel {
+  const ParentProfileModel({
+    required this.id,
+    required this.parentId,
+    required this.siteId,
+    this.legalName,
+    this.preferredName,
+    this.phone,
+    this.preferredLanguage,
+    this.communicationPreferences = const <String>[],
+    this.createdAt,
+    this.updatedAt,
+  });
+
+  final String id;
+  final String parentId;
+  final String siteId;
+  final String? legalName;
+  final String? preferredName;
+  final String? phone;
+  final String? preferredLanguage;
+  final List<String> communicationPreferences;
+  final Timestamp? createdAt;
+  final Timestamp? updatedAt;
+
+  factory ParentProfileModel.fromDoc(DocumentSnapshot<Map<String, dynamic>> doc) {
+    final data = doc.data() ?? <String, dynamic>{};
+    return ParentProfileModel(
+      id: doc.id,
+      parentId: data['parentId'] as String? ?? '',
+      siteId: data['siteId'] as String? ?? '',
+      legalName: data['legalName'] as String?,
+      preferredName: data['preferredName'] as String?,
+      phone: data['phone'] as String?,
+      preferredLanguage: data['preferredLanguage'] as String?,
+      communicationPreferences: List<String>.from(data['communicationPreferences'] as List? ?? const <String>[]),
+      createdAt: data['createdAt'] as Timestamp?,
+      updatedAt: data['updatedAt'] as Timestamp?,
+    );
+  }
+
+  Map<String, dynamic> toMap() => <String, dynamic>{
+        'parentId': parentId,
+        'siteId': siteId,
+        'legalName': legalName,
+        'preferredName': preferredName,
+        'phone': phone,
+        'preferredLanguage': preferredLanguage,
+        'communicationPreferences': communicationPreferences,
         'createdAt': createdAt ?? Timestamp.now(),
         'updatedAt': updatedAt ?? Timestamp.now(),
       };

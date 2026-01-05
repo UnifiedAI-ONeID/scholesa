@@ -14,6 +14,39 @@ class UserRepository {
   Future<void> upsert(UserModel model) => _col.doc(model.id).set(model.toMap(), SetOptions(merge: true));
 }
 
+class LearnerProfileRepository {
+  CollectionReference<Map<String, dynamic>> get _col => FirebaseFirestore.instance.collection('learnerProfiles');
+
+  Future<void> upsert(LearnerProfileModel model) => _col.doc(model.id).set(model.toMap(), SetOptions(merge: true));
+
+  Future<List<LearnerProfileModel>> listBySite(String siteId) async {
+    final snap = await _col.where('siteId', isEqualTo: siteId).get();
+    return snap.docs.map(LearnerProfileModel.fromDoc).toList();
+  }
+}
+
+class ParentProfileRepository {
+  CollectionReference<Map<String, dynamic>> get _col => FirebaseFirestore.instance.collection('parentProfiles');
+
+  Future<void> upsert(ParentProfileModel model) => _col.doc(model.id).set(model.toMap(), SetOptions(merge: true));
+
+  Future<List<ParentProfileModel>> listBySite(String siteId) async {
+    final snap = await _col.where('siteId', isEqualTo: siteId).get();
+    return snap.docs.map(ParentProfileModel.fromDoc).toList();
+  }
+}
+
+class GuardianLinkRepository {
+  CollectionReference<Map<String, dynamic>> get _col => FirebaseFirestore.instance.collection('guardianLinks');
+
+  Future<void> upsert(GuardianLinkModel model) => _col.doc(model.id).set(model.toMap(), SetOptions(merge: true));
+
+  Future<List<GuardianLinkModel>> listBySite(String siteId) async {
+    final snap = await _col.where('siteId', isEqualTo: siteId).get();
+    return snap.docs.map(GuardianLinkModel.fromDoc).toList();
+  }
+}
+
 class SiteRepository {
   CollectionReference<Map<String, dynamic>> get _col => FirebaseFirestore.instance.collection('sites');
 

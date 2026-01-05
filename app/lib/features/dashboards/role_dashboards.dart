@@ -187,6 +187,8 @@ class RoleDashboard extends StatelessWidget {
                     const SizedBox(height: 12),
                     _MissionAttemptForm(queue: queue, siteId: activeSiteId, appState: appState),
                     const SizedBox(height: 12),
+                    _MissionListCard(siteId: activeSiteId, learnerId: appState.user?.uid),
+                    const SizedBox(height: 12),
                     _PortfolioItemForm(queue: queue, siteId: activeSiteId, appState: appState),
                   ],
                   if ((currentRole == 'educator' || currentRole == 'site') && activeSiteId != null) ...[
@@ -200,6 +202,10 @@ class RoleDashboard extends StatelessWidget {
                       _AttendanceDemoCard(queue: queue, siteId: activeSiteId),
                       const SizedBox(height: 12),
                       _ParentSummaryCard(appState: appState, siteId: activeSiteId),
+                  ],
+                  if ((currentRole == 'site' || currentRole == 'hq') && activeSiteId != null) ...[
+                    const SizedBox(height: 12),
+                    _AdminProvisioningCard(siteId: activeSiteId, appState: appState),
                   ],
                   if (currentRole == 'site' && activeSiteId != null) ...[
                     const SizedBox(height: 12),
@@ -656,6 +662,11 @@ class _AttendanceFormState extends State<_AttendanceForm> {
   final TextEditingController _learnerId = TextEditingController();
   final TextEditingController _note = TextEditingController();
   String _status = 'present';
+  List<SessionOccurrenceModel> _occurrences = <SessionOccurrenceModel>[];
+  List<AttendanceRecordModel> _recent = <AttendanceRecordModel>[];
+  List<EnrollmentModel> _enrollments = <EnrollmentModel>[];
+  bool _loadingRefs = false;
+  String? _selectedOccurrenceId;
 
   @override
   void dispose() {
@@ -663,6 +674,33 @@ class _AttendanceFormState extends State<_AttendanceForm> {
     _learnerId.dispose();
     _note.dispose();
     super.dispose();
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    _loadRefs();
+  }
+
+  Future<void> _loadRefs() async {
+    setState(() => _loadingRefs = true);
+    final occRepo = SessionOccurrenceRepository();
+    final attRepo = AttendanceRepository();
+    final enrRepo = EnrollmentRepository();
+    final occs = await occRepo.listBySite(widget.siteId);
+    final recent = await attRepo.listBySite(widget.siteId);
+    final enrollments = await enrRepo.listBySite(widget.siteId);
+    if (!mounted) return;
+    setState(() {
+      _occurrences = occs;
+      _recent = recent;
+      _enrollments = enrollments;
+      _selectedOccurrenceId ??= _occurrences.isNotEmpty ? _occurrences.first.id : null;
+      if (_sessionOccurrenceId.text.isEmpty && _selectedOccurrenceId != null) {
+        _sessionOccurrenceId.text = _selectedOccurrenceId!;
+      }
+      _loadingRefs = false;
+    });
   }
 
   @override
@@ -677,7 +715,36 @@ class _AttendanceFormState extends State<_AttendanceForm> {
         children: [
           _TextField(controller: _sessionOccurrenceId, label: 'Session occurrence ID', hint: 'occ-2024-10-01-A'),
           const SizedBox(height: 8),
+          DropdownButtonFormField<String>(
+            initialValue: _selectedOccurrenceId ?? (_occurrences.isNotEmpty ? _occurrences.first.id : null),
+            decoration: _inputDecoration('Pick session occurrence'),
+            dropdownColor: const Color(0xFF0F172A),
+            items: _occurrences
+                .map((o) => DropdownMenuItem(
+                      value: o.id,
+                      child: Text('${o.id} • ${o.date}', style: const TextStyle(color: Colors.white)),
+                    ))
+                .toList(),
+            onChanged: (value) {
+              if (value != null) {
+                setState(() {
+                  _selectedOccurrenceId = value;
+                  _sessionOccurrenceId.text = value;
+                });
+              }
+            },
+          ),
+          const SizedBox(height: 8),
           _TextField(controller: _learnerId, label: 'Learner ID', hint: 'uid of learner'),
+          const SizedBox(height: 8),
+          _AttendanceRoster(
+            occurrences: _occurrences,
+            enrollments: _enrollments,
+            selectedOccurrenceId: _selectedOccurrenceId,
+            onSelectLearner: (id) {
+              setState(() => _learnerId.text = id);
+            },
+          ),
           const SizedBox(height: 8),
           DropdownButtonFormField<String>(
             initialValue: _status,
@@ -693,6 +760,17 @@ class _AttendanceFormState extends State<_AttendanceForm> {
           const SizedBox(height: 8),
           _TextField(controller: _note, label: 'Note (optional)', hint: 'Observation'),
           const SizedBox(height: 12),
+          if (_loadingRefs)
+            const Padding(
+              padding: EdgeInsets.only(bottom: 8),
+              child: Row(
+                children: [
+                  SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2)),
+                  SizedBox(width: 8),
+                  Text('Loading references...', style: TextStyle(color: Colors.white70)),
+                ],
+              ),
+            ),
           SizedBox(
             width: double.infinity,
             child: ElevatedButton.icon(
@@ -723,8 +801,118 @@ class _AttendanceFormState extends State<_AttendanceForm> {
                 if (!isOffline) await widget.queue.flush(online: true);
                 if (!context.mounted) return;
                 _toast(context, isOffline ? 'Queued attendance for sync' : 'Attendance saved');
+                _loadRefs();
               },
             ),
+          ),
+          _AttendanceRecentList(records: _recent.take(10).toList()),
+        ],
+      ),
+    );
+  }
+}
+
+class _AttendanceRecentList extends StatelessWidget {
+  const _AttendanceRecentList({required this.records});
+
+  final List<AttendanceRecordModel> records;
+
+  @override
+  Widget build(BuildContext context) {
+    if (records.isEmpty) {
+      return const SizedBox.shrink();
+    }
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const SizedBox(height: 10),
+        const Text('Recent attendance', style: TextStyle(color: Colors.white70, fontWeight: FontWeight.w700)),
+        const SizedBox(height: 6),
+        Container(
+          decoration: BoxDecoration(
+            color: Colors.white.withValues(alpha: 0.04),
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: Colors.white12),
+          ),
+          child: ListView.separated(
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            itemCount: records.length,
+            separatorBuilder: (_, unused) => const Divider(color: Colors.white10, height: 1),
+            itemBuilder: (context, index) {
+              final r = records[index];
+              return ListTile(
+                dense: true,
+                title: Text('${r.sessionOccurrenceId} • ${r.learnerId}', style: const TextStyle(color: Colors.white)),
+                subtitle: Text('Status: ${r.status}${r.note != null ? ' • ${r.note}' : ''}', style: const TextStyle(color: Colors.white70)),
+              );
+            },
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _AttendanceRoster extends StatelessWidget {
+  const _AttendanceRoster({
+    required this.occurrences,
+    required this.enrollments,
+    required this.selectedOccurrenceId,
+    required this.onSelectLearner,
+  });
+
+  final List<SessionOccurrenceModel> occurrences;
+  final List<EnrollmentModel> enrollments;
+  final String? selectedOccurrenceId;
+  final ValueChanged<String> onSelectLearner;
+
+  @override
+  Widget build(BuildContext context) {
+    if (selectedOccurrenceId == null) return const SizedBox.shrink();
+    final occ = occurrences.firstWhere(
+      (o) => o.id == selectedOccurrenceId,
+      orElse: () => SessionOccurrenceModel(
+        id: '',
+        sessionId: '',
+        siteId: '',
+        date: '',
+        startAt: Timestamp.now(),
+        endAt: Timestamp.now(),
+      ),
+    );
+    if (occ.id.isEmpty) return const SizedBox.shrink();
+    final roster = enrollments.where((e) => e.sessionId == occ.sessionId).toList();
+    if (roster.isEmpty) return const SizedBox.shrink();
+    return Container(
+      width: double.infinity,
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: 0.04),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.white12),
+      ),
+      padding: const EdgeInsets.all(10),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text('Roster for ${occ.sessionId} (${occ.date})', style: const TextStyle(color: Colors.white70, fontWeight: FontWeight.w700)),
+          const SizedBox(height: 6),
+          ListView.separated(
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            itemCount: roster.length,
+            separatorBuilder: (_, unused) => const Divider(color: Colors.white10, height: 1),
+            itemBuilder: (context, index) {
+              final enrollment = roster[index];
+              return ListTile(
+                dense: true,
+                title: Text(enrollment.learnerId, style: const TextStyle(color: Colors.white)),
+                trailing: TextButton(
+                  onPressed: () => onSelectLearner(enrollment.learnerId),
+                  child: const Text('Select', style: TextStyle(color: Colors.white70)),
+                ),
+              );
+            },
           ),
         ],
       ),
@@ -821,6 +1009,441 @@ class _AttendanceDemoCard extends StatelessWidget {
   }
 }
 
+class _AdminProvisioningCard extends StatefulWidget {
+  const _AdminProvisioningCard({required this.siteId, required this.appState});
+
+  final String siteId;
+  final AppState appState;
+
+  @override
+  State<_AdminProvisioningCard> createState() => _AdminProvisioningCardState();
+}
+
+class _AdminProvisioningCardState extends State<_AdminProvisioningCard> {
+  final TextEditingController _learnerId = TextEditingController();
+  final TextEditingController _learnerEmail = TextEditingController();
+  final TextEditingController _learnerName = TextEditingController();
+  final TextEditingController _learnerPreferred = TextEditingController();
+  final TextEditingController _learnerGrade = TextEditingController();
+  final TextEditingController _learnerDob = TextEditingController();
+
+  final TextEditingController _parentId = TextEditingController();
+  final TextEditingController _parentEmail = TextEditingController();
+  final TextEditingController _parentName = TextEditingController();
+  final TextEditingController _parentPhone = TextEditingController();
+  final TextEditingController _parentLang = TextEditingController();
+
+  final TextEditingController _linkParentId = TextEditingController();
+  final TextEditingController _linkLearnerId = TextEditingController();
+  String _relationship = 'guardian';
+  bool _isPrimary = true;
+
+  bool _busy = false;
+
+  @override
+  void dispose() {
+    _learnerId.dispose();
+    _learnerEmail.dispose();
+    _learnerName.dispose();
+    _learnerPreferred.dispose();
+    _learnerGrade.dispose();
+    _learnerDob.dispose();
+    _parentId.dispose();
+    _parentEmail.dispose();
+    _parentName.dispose();
+    _parentPhone.dispose();
+    _parentLang.dispose();
+    _linkParentId.dispose();
+    _linkLearnerId.dispose();
+    super.dispose();
+  }
+
+  Future<void> _createLearner() async {
+    if (_busy) return;
+    final learnerId = _learnerId.text.trim();
+    final email = _learnerEmail.text.trim();
+    if (learnerId.isEmpty || email.isEmpty) {
+      _toast(context, 'Learner ID and email are required');
+      return;
+    }
+    final actorId = widget.appState.user?.uid ?? FirebaseAuth.instance.currentUser?.uid;
+    if (actorId == null) {
+      _toast(context, 'Sign in required');
+      return;
+    }
+    setState(() => _busy = true);
+    try {
+      final userRepo = UserRepository();
+      final learnerRepo = LearnerProfileRepository();
+      final auditRepo = AuditLogRepository();
+      final now = Timestamp.now();
+      await userRepo.upsert(
+        UserModel(
+          id: learnerId,
+          email: email,
+          role: 'learner',
+          displayName: _learnerPreferred.text.trim().isNotEmpty ? _learnerPreferred.text.trim() : _learnerName.text.trim(),
+          siteIds: <String>[widget.siteId],
+          activeSiteId: widget.siteId,
+          provisionedBy: actorId,
+          provisionedAt: now,
+          createdAt: now,
+          updatedAt: now,
+        ),
+      );
+      await learnerRepo.upsert(
+        LearnerProfileModel(
+          id: 'lp-$learnerId',
+          learnerId: learnerId,
+          siteId: widget.siteId,
+          legalName: _learnerName.text.trim().isEmpty ? null : _learnerName.text.trim(),
+          preferredName: _learnerPreferred.text.trim().isEmpty ? null : _learnerPreferred.text.trim(),
+          dateOfBirth: _learnerDob.text.trim().isEmpty ? null : _learnerDob.text.trim(),
+          gradeLevel: _learnerGrade.text.trim().isEmpty ? null : _learnerGrade.text.trim(),
+          createdAt: now,
+          updatedAt: now,
+        ),
+      );
+      await auditRepo.log(
+        AuditLogModel(
+          id: 'audit-learner-$learnerId-${now.millisecondsSinceEpoch}',
+          actorId: actorId,
+          actorRole: widget.appState.role ?? 'site',
+          action: 'learner.provision',
+          entityType: 'learnerProfile',
+          entityId: 'lp-$learnerId',
+          siteId: widget.siteId,
+          details: <String, dynamic>{'learnerId': learnerId, 'email': email},
+          createdAt: Timestamp.now(),
+        ),
+      );
+      if (!mounted) return;
+      _toast(context, 'Learner provisioned');
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  Future<void> _createParent() async {
+    if (_busy) return;
+    final parentId = _parentId.text.trim();
+    final email = _parentEmail.text.trim();
+    if (parentId.isEmpty || email.isEmpty) {
+      _toast(context, 'Parent ID and email are required');
+      return;
+    }
+    final actorId = widget.appState.user?.uid ?? FirebaseAuth.instance.currentUser?.uid;
+    if (actorId == null) {
+      _toast(context, 'Sign in required');
+      return;
+    }
+    setState(() => _busy = true);
+    try {
+      final userRepo = UserRepository();
+      final parentRepo = ParentProfileRepository();
+      final auditRepo = AuditLogRepository();
+      final now = Timestamp.now();
+      await userRepo.upsert(
+        UserModel(
+          id: parentId,
+          email: email,
+          role: 'parent',
+          displayName: _parentName.text.trim().isEmpty ? null : _parentName.text.trim(),
+          siteIds: <String>[widget.siteId],
+          activeSiteId: widget.siteId,
+          provisionedBy: actorId,
+          provisionedAt: now,
+          createdAt: now,
+          updatedAt: now,
+        ),
+      );
+      await parentRepo.upsert(
+        ParentProfileModel(
+          id: 'pp-$parentId',
+          parentId: parentId,
+          siteId: widget.siteId,
+          legalName: _parentName.text.trim().isEmpty ? null : _parentName.text.trim(),
+          preferredName: _parentName.text.trim().isEmpty ? null : _parentName.text.trim(),
+          phone: _parentPhone.text.trim().isEmpty ? null : _parentPhone.text.trim(),
+          preferredLanguage: _parentLang.text.trim().isEmpty ? null : _parentLang.text.trim(),
+          communicationPreferences: const <String>['email'],
+          createdAt: now,
+          updatedAt: now,
+        ),
+      );
+      await auditRepo.log(
+        AuditLogModel(
+          id: 'audit-parent-$parentId-${now.millisecondsSinceEpoch}',
+          actorId: actorId,
+          actorRole: widget.appState.role ?? 'site',
+          action: 'parent.provision',
+          entityType: 'parentProfile',
+          entityId: 'pp-$parentId',
+          siteId: widget.siteId,
+          details: <String, dynamic>{'parentId': parentId, 'email': email},
+          createdAt: Timestamp.now(),
+        ),
+      );
+      if (!mounted) return;
+      _toast(context, 'Parent provisioned');
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  Future<void> _linkGuardian() async {
+    if (_busy) return;
+    final parentId = _linkParentId.text.trim();
+    final learnerId = _linkLearnerId.text.trim();
+    if (parentId.isEmpty || learnerId.isEmpty) {
+      _toast(context, 'Parent ID and learner ID are required');
+      return;
+    }
+    final actorId = widget.appState.user?.uid ?? FirebaseAuth.instance.currentUser?.uid;
+    if (actorId == null) {
+      _toast(context, 'Sign in required');
+      return;
+    }
+    setState(() => _busy = true);
+    try {
+      final repo = GuardianLinkRepository();
+      final auditRepo = AuditLogRepository();
+      final now = Timestamp.now();
+      final linkId = 'gl-$parentId-$learnerId';
+      await repo.upsert(
+        GuardianLinkModel(
+          id: linkId,
+          parentId: parentId,
+          learnerId: learnerId,
+          siteId: widget.siteId,
+          relationship: _relationship,
+          isPrimary: _isPrimary,
+          createdAt: now,
+          updatedAt: now,
+        ),
+      );
+      await auditRepo.log(
+        AuditLogModel(
+          id: 'audit-guardian-$linkId-${now.millisecondsSinceEpoch}',
+          actorId: actorId,
+          actorRole: widget.appState.role ?? 'site',
+          action: 'guardian.link',
+          entityType: 'guardianLink',
+          entityId: linkId,
+          siteId: widget.siteId,
+          details: <String, dynamic>{'parentId': parentId, 'learnerId': learnerId, 'relationship': _relationship},
+          createdAt: Timestamp.now(),
+        ),
+      );
+      if (!mounted) return;
+      _toast(context, 'Guardian link saved');
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return _GlassCard(
+      title: 'Admin provisioning',
+      subtitle: 'HQ/Site can create learners, parents, and guardian links (site scoped).',
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text('Create learner', style: TextStyle(color: Colors.white70, fontWeight: FontWeight.w700)),
+          const SizedBox(height: 8),
+          _TextField(controller: _learnerId, label: 'Learner ID', hint: 'uid'),
+          const SizedBox(height: 8),
+          _TextField(controller: _learnerEmail, label: 'Learner email', hint: 'learner@example.com'),
+          const SizedBox(height: 8),
+          _TextField(controller: _learnerName, label: 'Legal name', hint: 'Full name'),
+          const SizedBox(height: 8),
+          _TextField(controller: _learnerPreferred, label: 'Preferred name (optional)', hint: 'Nickname'),
+          const SizedBox(height: 8),
+          _TextField(controller: _learnerGrade, label: 'Grade level (optional)', hint: 'Grade'),
+          const SizedBox(height: 8),
+          _TextField(controller: _learnerDob, label: 'Date of birth (YYYY-MM-DD)', hint: '2009-06-01'),
+          const SizedBox(height: 10),
+          SizedBox(
+            width: double.infinity,
+            child: ElevatedButton.icon(
+              onPressed: _busy ? null : _createLearner,
+              icon: const Icon(Icons.person_add, color: Colors.white),
+              label: Text(_busy ? 'Working...' : 'Create learner'),
+            ),
+          ),
+          const SizedBox(height: 16),
+          const Divider(color: Colors.white12),
+          const SizedBox(height: 12),
+          const Text('Create parent', style: TextStyle(color: Colors.white70, fontWeight: FontWeight.w700)),
+          const SizedBox(height: 8),
+          _TextField(controller: _parentId, label: 'Parent ID', hint: 'uid'),
+          const SizedBox(height: 8),
+          _TextField(controller: _parentEmail, label: 'Parent email', hint: 'parent@example.com'),
+          const SizedBox(height: 8),
+          _TextField(controller: _parentName, label: 'Name', hint: 'Legal name'),
+          const SizedBox(height: 8),
+          _TextField(controller: _parentPhone, label: 'Phone (optional)', hint: '+1...'),
+          const SizedBox(height: 8),
+          _TextField(controller: _parentLang, label: 'Preferred language (optional)', hint: 'en'),
+          const SizedBox(height: 10),
+          SizedBox(
+            width: double.infinity,
+            child: ElevatedButton.icon(
+              onPressed: _busy ? null : _createParent,
+              icon: const Icon(Icons.family_restroom, color: Colors.white),
+              label: Text(_busy ? 'Working...' : 'Create parent'),
+            ),
+          ),
+          const SizedBox(height: 16),
+          const Divider(color: Colors.white12),
+          const SizedBox(height: 12),
+          const Text('Link parent to learner', style: TextStyle(color: Colors.white70, fontWeight: FontWeight.w700)),
+          const SizedBox(height: 8),
+          _TextField(controller: _linkParentId, label: 'Parent ID', hint: 'parent uid'),
+          const SizedBox(height: 8),
+          _TextField(controller: _linkLearnerId, label: 'Learner ID', hint: 'learner uid'),
+          const SizedBox(height: 8),
+          DropdownButtonFormField<String>(
+            initialValue: _relationship,
+            dropdownColor: const Color(0xFF0F172A),
+            decoration: _inputDecoration('Relationship'),
+            items: const [
+              DropdownMenuItem(value: 'mother', child: Text('Mother')),
+              DropdownMenuItem(value: 'father', child: Text('Father')),
+              DropdownMenuItem(value: 'guardian', child: Text('Guardian')),
+              DropdownMenuItem(value: 'other', child: Text('Other')),
+            ],
+            onChanged: (value) => setState(() => _relationship = value ?? 'guardian'),
+          ),
+          const SizedBox(height: 8),
+          SwitchListTile(
+            value: _isPrimary,
+            onChanged: (value) => setState(() => _isPrimary = value),
+            title: const Text('Primary guardian', style: TextStyle(color: Colors.white70)),
+            contentPadding: EdgeInsets.zero,
+            activeTrackColor: const Color(0xFF38BDF8),
+          ),
+          const SizedBox(height: 8),
+          SizedBox(
+            width: double.infinity,
+            child: ElevatedButton.icon(
+              onPressed: _busy ? null : _linkGuardian,
+              icon: const Icon(Icons.link, color: Colors.white),
+              label: Text(_busy ? 'Working...' : 'Link guardian'),
+            ),
+          ),
+          const SizedBox(height: 16),
+          const Divider(color: Colors.white12),
+          const SizedBox(height: 12),
+          _ProvisionedList(
+            title: 'Learners at this site',
+            stream: FirebaseFirestore.instance
+                .collection('learnerProfiles')
+                .where('siteId', isEqualTo: widget.siteId)
+                .orderBy('createdAt', descending: true)
+                .snapshots(),
+            itemBuilder: (data) {
+              final name = (data['preferredName'] ?? data['legalName'] ?? '') as String?;
+              return '${data['learnerId'] ?? ''}${name != null && name.isNotEmpty ? ' • $name' : ''}';
+            },
+          ),
+          const SizedBox(height: 12),
+          _ProvisionedList(
+            title: 'Parents at this site',
+            stream: FirebaseFirestore.instance
+                .collection('parentProfiles')
+                .where('siteId', isEqualTo: widget.siteId)
+                .orderBy('createdAt', descending: true)
+                .snapshots(),
+            itemBuilder: (data) {
+              final name = (data['preferredName'] ?? data['legalName'] ?? '') as String?;
+              return '${data['parentId'] ?? ''}${name != null && name.isNotEmpty ? ' • $name' : ''}';
+            },
+          ),
+          const SizedBox(height: 12),
+          _ProvisionedList(
+            title: 'Guardian links',
+            stream: FirebaseFirestore.instance
+                .collection('guardianLinks')
+                .where('siteId', isEqualTo: widget.siteId)
+                .orderBy('createdAt', descending: true)
+                .snapshots(),
+            itemBuilder: (data) {
+              final rel = data['relationship'] as String?;
+              final primary = data['isPrimary'] == true ? ' (primary)' : '';
+              return '${data['parentId'] ?? ''} → ${data['learnerId'] ?? ''}${rel != null ? ' • $rel' : ''}$primary';
+            },
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ProvisionedList extends StatelessWidget {
+  const _ProvisionedList({required this.title, required this.stream, required this.itemBuilder});
+
+  final String title;
+  final Stream<QuerySnapshot<Map<String, dynamic>>> stream;
+  final String Function(Map<String, dynamic>) itemBuilder;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(title, style: const TextStyle(color: Colors.white70, fontWeight: FontWeight.w700)),
+        const SizedBox(height: 8),
+        Container(
+          decoration: BoxDecoration(
+            color: Colors.white.withValues(alpha: 0.04),
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: Colors.white12),
+          ),
+          child: StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+            stream: stream,
+            builder: (context, snapshot) {
+              if (snapshot.connectionState == ConnectionState.waiting) {
+                return const Padding(
+                  padding: EdgeInsets.all(12),
+                  child: Row(children: [SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2)), SizedBox(width: 8), Text('Loading...', style: TextStyle(color: Colors.white70))]),
+                );
+              }
+              if (snapshot.hasError) {
+                return Padding(
+                  padding: const EdgeInsets.all(12),
+                  child: Text('Error loading $title', style: const TextStyle(color: Colors.redAccent)),
+                );
+              }
+              final docs = snapshot.data?.docs ?? const [];
+              if (docs.isEmpty) {
+                return Padding(
+                  padding: const EdgeInsets.all(12),
+                  child: Text('No records yet', style: TextStyle(color: Colors.white.withValues(alpha: 0.7))),
+                );
+              }
+              return ListView.separated(
+                shrinkWrap: true,
+                physics: const NeverScrollableScrollPhysics(),
+                itemBuilder: (context, index) {
+                  final data = docs[index].data();
+                  return ListTile(
+                    dense: true,
+                    title: Text(itemBuilder(data), style: const TextStyle(color: Colors.white)),
+                  );
+                },
+                separatorBuilder: (_, unused) => const Divider(color: Colors.white10, height: 1),
+                itemCount: docs.length,
+              );
+            },
+          ),
+        ),
+      ],
+    );
+  }
+}
+
 class _ParentSummaryCard extends StatefulWidget {
   const _ParentSummaryCard({required this.appState, this.siteId});
 
@@ -829,6 +1452,151 @@ class _ParentSummaryCard extends StatefulWidget {
 
   @override
   State<_ParentSummaryCard> createState() => _ParentSummaryCardState();
+}
+
+class _MissionListCard extends StatefulWidget {
+  const _MissionListCard({required this.siteId, required this.learnerId});
+
+  final String siteId;
+  final String? learnerId;
+
+  @override
+  State<_MissionListCard> createState() => _MissionListCardState();
+}
+
+class _MissionListCardState extends State<_MissionListCard> {
+  List<MissionModel> _missions = <MissionModel>[];
+  List<MissionAttemptModel> _attempts = <MissionAttemptModel>[];
+  bool _loading = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  Future<void> _load() async {
+    setState(() => _loading = true);
+    try {
+      final missions = await _fetchMissions();
+      final attempts = await _fetchAttempts();
+      if (!mounted) return;
+      setState(() {
+        _missions = missions;
+        _attempts = attempts;
+        _loading = false;
+      });
+    } finally {
+      if (mounted && _loading) setState(() => _loading = false);
+    }
+  }
+
+  Future<List<MissionModel>> _fetchMissions() async {
+    final missions = <MissionModel>[];
+    final siteSnap = await FirebaseFirestore.instance
+        .collection('missions')
+        .where('siteId', isEqualTo: widget.siteId)
+        .get();
+    missions.addAll(siteSnap.docs.map(MissionModel.fromDoc));
+    final globalSnap = await FirebaseFirestore.instance
+        .collection('missions')
+        .where('siteId', isNull: true)
+        .get();
+    missions.addAll(globalSnap.docs.map(MissionModel.fromDoc));
+    final seen = <String>{};
+    final deduped = <MissionModel>[];
+    for (final m in missions) {
+      if (seen.add(m.id)) deduped.add(m);
+    }
+    return deduped;
+  }
+
+  Future<List<MissionAttemptModel>> _fetchAttempts() async {
+    final learnerId = widget.learnerId;
+    if (learnerId == null || learnerId.isEmpty) return <MissionAttemptModel>[];
+    final snap = await FirebaseFirestore.instance
+        .collection('missionAttempts')
+        .where('learnerId', isEqualTo: learnerId)
+        .orderBy('createdAt', descending: true)
+        .limit(10)
+        .get();
+    return snap.docs.map(MissionAttemptModel.fromDoc).toList();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return _GlassCard(
+      title: 'Available missions',
+      subtitle: 'Site-specific and global missions with recent attempts.',
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          if (_loading)
+            const Padding(
+              padding: EdgeInsets.only(bottom: 8),
+              child: Row(
+                children: [
+                  SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2)),
+                  SizedBox(width: 8),
+                  Text('Loading missions...', style: TextStyle(color: Colors.white70)),
+                ],
+              ),
+            ),
+          if (_missions.isNotEmpty)
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text('Missions', style: TextStyle(color: Colors.white70, fontWeight: FontWeight.w700)),
+                const SizedBox(height: 6),
+                ListView.separated(
+                  shrinkWrap: true,
+                  physics: const NeverScrollableScrollPhysics(),
+                  itemCount: _missions.length,
+                  separatorBuilder: (_, unused) => const Divider(color: Colors.white10, height: 1),
+                  itemBuilder: (context, index) {
+                    final m = _missions[index];
+                    final pillars = (m.pillarCodes).join(' • ');
+                    final scope = (m.siteId == null || (m.siteId?.isEmpty ?? true)) ? 'Global' : 'Site';
+                    return ListTile(
+                      dense: true,
+                      title: Text(m.title, style: const TextStyle(color: Colors.white)),
+                      subtitle: Text('$scope • $pillars', style: const TextStyle(color: Colors.white70)),
+                    );
+                  },
+                ),
+              ],
+            ),
+          if (_missions.isEmpty && !_loading)
+            const Text('No missions available yet.', style: TextStyle(color: Colors.white70)),
+          const SizedBox(height: 12),
+          if (_attempts.isNotEmpty)
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text('Recent attempts', style: TextStyle(color: Colors.white70, fontWeight: FontWeight.w700)),
+                const SizedBox(height: 6),
+                ListView.separated(
+                  shrinkWrap: true,
+                  physics: const NeverScrollableScrollPhysics(),
+                  itemCount: _attempts.length,
+                  separatorBuilder: (_, unused) => const Divider(color: Colors.white10, height: 1),
+                  itemBuilder: (context, index) {
+                    final a = _attempts[index];
+                    return ListTile(
+                      dense: true,
+                      title: Text(a.missionId, style: const TextStyle(color: Colors.white)),
+                      subtitle: Text('Status: ${a.status}${a.reflection != null ? ' • ${a.reflection}' : ''}', style: const TextStyle(color: Colors.white70)),
+                    );
+                  },
+                ),
+              ],
+            ),
+          if (_attempts.isEmpty && !_loading)
+            const Text('No attempts yet.', style: TextStyle(color: Colors.white70)),
+        ],
+      ),
+    );
+  }
 }
 
 class _ParentSummaryCardState extends State<_ParentSummaryCard> {

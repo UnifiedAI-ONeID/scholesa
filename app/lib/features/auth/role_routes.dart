@@ -13,5 +13,6 @@ String dashboardRouteFor(String role) {
 
 bool rolePermitted(String role, Set<String> entitlements) {
   if (entitlements.isEmpty) return false;
+  if (entitlements.contains('superuser')) return true;
   return entitlements.contains(role);
 }

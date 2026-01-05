@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 
 import 'app_state.dart';
 import 'auth_service.dart';
+import 'role_routes.dart';
 
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
@@ -36,8 +37,18 @@ class _LoginPageState extends State<LoginPage> {
         password: passwordController.text.trim(),
       );
       if (!mounted) return;
-      context.read<AppState>().clearRole();
-      Navigator.pushReplacementNamed(context, '/roles');
+      final appState = context.read<AppState>();
+      await appState.refreshEntitlements();
+      if (!mounted) return;
+      final ent = appState.entitlements;
+      if (ent.length == 1) {
+        final role = ent.first;
+        appState.setRole(role);
+        Navigator.pushReplacementNamed(context, dashboardRouteFor(role));
+      } else {
+        appState.clearRole();
+        Navigator.pushReplacementNamed(context, '/roles');
+      }
     } catch (e) {
       setState(() => error = 'Check your email or password and try again.');
     } finally {
