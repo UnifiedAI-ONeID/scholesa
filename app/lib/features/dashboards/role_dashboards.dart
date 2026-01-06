@@ -6,6 +6,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../domain/models.dart';
 import '../../domain/repositories.dart';
+import '../auth/app_state.dart';
 import '../offline/offline_queue.dart';
 import '../offline/offline_service.dart';
 
@@ -17,8 +18,26 @@ class RoleDashboard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final appState = context.watch<AppState>();
+    final managedSites = appState.siteIds;
+    final defaultSite = appState.primarySiteId ?? (managedSites.isNotEmpty ? managedSites.first : '');
     return Scaffold(
-      appBar: AppBar(title: Text('Dashboard • $role')),
+      appBar: AppBar(
+        title: Text('Dashboard • $role'),
+        actions: [
+          IconButton(
+            tooltip: 'Sign out',
+            icon: const Icon(Icons.logout),
+            onPressed: () async {
+              await FirebaseAuth.instance.signOut();
+              if (!context.mounted) return;
+              context.read<AppState>().clearAuth();
+              if (!context.mounted) return;
+              Navigator.pushNamedAndRemoveUntil(context, '/login', (route) => false);
+            },
+          ),
+        ],
+      ),
       body: SafeArea(
         child: Consumer2<OfflineQueue, OfflineService>(
           builder: (context, queue, offline, _) {
@@ -27,6 +46,32 @@ class RoleDashboard extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
+                  if (role == 'hq' && managedSites.isNotEmpty) ...[
+                    Card(
+                      child: Padding(
+                        padding: const EdgeInsets.all(12),
+                        child: Row(
+                          children: [
+                            const Text('Managed site:', style: TextStyle(fontWeight: FontWeight.w600)),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: DropdownButtonFormField<String>(
+                                initialValue: defaultSite.isNotEmpty ? defaultSite : managedSites.first,
+                                items: managedSites
+                                    .map((id) => DropdownMenuItem<String>(value: id, child: Text(id)))
+                                    .toList(),
+                                onChanged: (value) async {
+                                  await appState.setPrimarySite(value);
+                                },
+                                decoration: const InputDecoration(labelText: 'Select site'),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                  ],
                   _QueueStatus(queue: queue, offline: offline),
                   const SizedBox(height: 12),
                   _QueueInspector(queue: queue),
@@ -38,18 +83,18 @@ class RoleDashboard extends StatelessWidget {
                   ],
                   if (role == 'educator' || role == 'site') ...[
                     const _CardTitle('Quick attendance'),
-                    _AttendanceCard(),
+                    _AttendanceCard(initialSiteId: defaultSite),
                     const SizedBox(height: 24),
                   ],
                   const _CardTitle('Submit mission attempt'),
                   _MissionAttemptCard(role: role),
                   const SizedBox(height: 24),
                   const _CardTitle('Portfolio'),
-                  _PortfolioCard(role: role),
+                  _PortfolioCard(role: role, initialSiteId: defaultSite),
                   const SizedBox(height: 24),
                   if (role == 'educator' || role == 'hq' || role == 'site') ...[
                     const _CardTitle('Issue credential'),
-                    _CredentialCard(role: role),
+                    _CredentialCard(role: role, initialSiteId: defaultSite),
                     const SizedBox(height: 24),
                   ],
                   const _CardTitle('KPIs'),
@@ -68,9 +113,10 @@ class RoleDashboard extends StatelessWidget {
 }
 
 class _PortfolioCard extends StatefulWidget {
-  const _PortfolioCard({required this.role});
+  const _PortfolioCard({required this.role, this.initialSiteId});
 
   final String role;
+  final String? initialSiteId;
 
   @override
   State<_PortfolioCard> createState() => _PortfolioCardState();
@@ -96,6 +142,9 @@ class _PortfolioCardState extends State<_PortfolioCard> {
     final user = FirebaseAuth.instance.currentUser;
     if (user != null) {
       _learnerId.text = user.uid;
+    }
+    if (widget.initialSiteId != null && widget.initialSiteId!.isNotEmpty) {
+      _siteId.text = widget.initialSiteId!;
     }
   }
 
@@ -335,9 +384,10 @@ class _PortfolioCardState extends State<_PortfolioCard> {
 }
 
 class _CredentialCard extends StatefulWidget {
-  const _CredentialCard({required this.role});
+  const _CredentialCard({required this.role, this.initialSiteId});
 
   final String role;
+  final String? initialSiteId;
 
   @override
   State<_CredentialCard> createState() => _CredentialCardState();
@@ -353,6 +403,14 @@ class _CredentialCardState extends State<_CredentialCard> {
   List<CredentialModel> _items = <CredentialModel>[];
   bool _submitting = false;
   bool _loading = false;
+
+  @override
+  void initState() {
+    super.initState();
+    if (widget.initialSiteId != null && widget.initialSiteId!.isNotEmpty) {
+      _siteId.text = widget.initialSiteId!;
+    }
+  }
 
   @override
   void dispose() {
@@ -783,6 +841,10 @@ class _CardTitle extends StatelessWidget {
 }
 
 class _AttendanceCard extends StatefulWidget {
+  const _AttendanceCard({this.initialSiteId});
+
+  final String? initialSiteId;
+
   @override
   State<_AttendanceCard> createState() => _AttendanceCardState();
 }
@@ -796,6 +858,14 @@ class _AttendanceCardState extends State<_AttendanceCard> {
   bool _loading = false;
   final _attendanceRepo = AttendanceRepository();
   List<AttendanceRecordModel> _recent = <AttendanceRecordModel>[];
+
+  @override
+  void initState() {
+    super.initState();
+    if (widget.initialSiteId != null && widget.initialSiteId!.isNotEmpty) {
+      _siteId.text = widget.initialSiteId!;
+    }
+  }
 
   @override
   void dispose() {

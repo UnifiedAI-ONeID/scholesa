@@ -22,6 +22,14 @@ class RoleSelectorPage extends StatefulWidget {
 }
 
 class _RoleSelectorPageState extends State<RoleSelectorPage> {
+  bool _navigated = false;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) => _maybeAutoNavigate());
+  }
+
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
@@ -30,6 +38,33 @@ class _RoleSelectorPageState extends State<RoleSelectorPage> {
         Navigator.pushNamedAndRemoveUntil(context, '/login', (route) => false);
       });
     }
+    WidgetsBinding.instance.addPostFrameCallback((_) => _maybeAutoNavigate());
+  }
+
+  void _maybeAutoNavigate() {
+    if (!mounted || _navigated) return;
+    final appState = context.read<AppState>();
+    final entitlements = appState.entitlements.map(normalizeRole).toSet();
+    if (entitlements.isEmpty) return;
+    final hasSuperuser = entitlements.contains('superuser');
+    final eligibleRoles = entitlements
+        .where((role) => role != 'superuser')
+        .toSet();
+
+    final selected = appState.role != null ? normalizeRole(appState.role!) : null;
+    final target = selected != null && (eligibleRoles.contains(selected) || hasSuperuser)
+        ? selected
+        : (eligibleRoles.length == 1
+            ? eligibleRoles.first
+            : (eligibleRoles.isEmpty && hasSuperuser ? 'hq' : null));
+
+    if (target == null) return;
+    _navigated = true;
+    Navigator.pushNamedAndRemoveUntil(
+      context,
+      dashboardRouteFor(target),
+      (route) => false,
+    );
   }
 
   @override
@@ -82,7 +117,11 @@ class _RoleSelectorPageState extends State<RoleSelectorPage> {
                           }
                           final normalized = normalizeRole(entry.key);
                           context.read<AppState>().setRole(normalized);
-                          Navigator.pushReplacementNamed(context, dashboardRouteFor(normalized));
+                          Navigator.pushNamedAndRemoveUntil(
+                            context,
+                            dashboardRouteFor(normalized),
+                            (route) => false,
+                          );
                         },
                       );
                     }).toList(),

@@ -64,8 +64,9 @@ class _LoginPageState extends State<LoginPage> {
 
       if (selectableRoles.length == 1 || (selectableRoles.isEmpty && hasSuperuser)) {
         final role = selectableRoles.isNotEmpty ? selectableRoles.first : 'hq';
-        appState.setRole(role);
-        Navigator.pushReplacementNamed(context, dashboardRouteFor(role));
+        final normalized = normalizeRole(role);
+        appState.setRole(normalized);
+        Navigator.pushNamedAndRemoveUntil(context, dashboardRouteFor(normalized), (route) => false);
       } else {
         appState.clearRole();
         Navigator.pushReplacementNamed(context, '/roles');

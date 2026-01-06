@@ -36,7 +36,7 @@ class AppState extends ChangeNotifier {
   }
 
   void setRole(String role) {
-    _role = role;
+    _role = normalizeRole(role);
     notifyListeners();
   }
 
