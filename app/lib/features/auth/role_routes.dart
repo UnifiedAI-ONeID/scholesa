@@ -1,25 +1,34 @@
 String normalizeRole(String role) {
   final normalized = role.trim().toLowerCase();
-  switch (normalized) {
-    case 'hq_admin':
+  final slug = normalized.replaceAll(RegExp(r'[^a-z0-9]'), '');
+  switch (slug) {
+    case 'superuser':
+      return 'superuser';
     case 'hqadmin':
     case 'admin':
+    case 'hq':
       return 'hq';
-    case 'site_lead':
     case 'sitelead':
-    case 'site-lead':
-    case 'site_admin':
     case 'siteadmin':
+    case 'siteleader':
+    case 'site':
       return 'site';
     case 'guardian':
-    case 'parent_guardian':
+    case 'parentguardian':
+    case 'parent':
       return 'parent';
     case 'teacher':
+    case 'educator':
       return 'educator';
     case 'student':
+    case 'learner':
       return 'learner';
+    case 'partner':
+      return 'partner';
+    case 'hqrole':
+      return 'hq';
     default:
-      return normalized;
+      return slug.isEmpty ? normalized : slug;
   }
 }
 
