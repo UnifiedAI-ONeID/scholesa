@@ -58,7 +58,7 @@ class _RegisterPageState extends State<RegisterPage> {
         padding: const EdgeInsets.all(16),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: <>[
+          children: <Widget>[
             TextField(
               controller: emailController,
               decoration: const InputDecoration(labelText: 'Email'),
