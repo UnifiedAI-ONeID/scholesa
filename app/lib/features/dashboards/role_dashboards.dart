@@ -11,16 +11,33 @@ import '../offline/offline_queue.dart';
 import '../offline/offline_service.dart';
 
 /// Role dashboard with lean attendance + mission submission slices.
-class RoleDashboard extends StatelessWidget {
+class RoleDashboard extends StatefulWidget {
   const RoleDashboard({super.key, required this.role});
 
   final String role;
 
   @override
+  State<RoleDashboard> createState() => _RoleDashboardState();
+}
+
+class _RoleDashboardState extends State<RoleDashboard> {
+  final TextEditingController _manualSite = TextEditingController();
+
+  @override
+  void dispose() {
+    _manualSite.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final role = widget.role;
     final appState = context.watch<AppState>();
     final managedSites = appState.siteIds;
     final defaultSite = appState.primarySiteId ?? (managedSites.isNotEmpty ? managedSites.first : '');
+    if (_manualSite.text.isEmpty && defaultSite.isNotEmpty) {
+      _manualSite.text = defaultSite;
+    }
     return Scaffold(
       appBar: AppBar(
         title: Text('Dashboard • $role'),
@@ -46,24 +63,49 @@ class RoleDashboard extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  if (role == 'hq' && managedSites.isNotEmpty) ...[
+                  if (role == 'hq') ...[
                     Card(
                       child: Padding(
                         padding: const EdgeInsets.all(12),
-                        child: Row(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            const Text('Managed site:', style: TextStyle(fontWeight: FontWeight.w600)),
-                            const SizedBox(width: 12),
-                            Expanded(
-                              child: DropdownButtonFormField<String>(
+                            const Text('Managed site', style: TextStyle(fontWeight: FontWeight.w600)),
+                            const SizedBox(height: 8),
+                            if (managedSites.isNotEmpty)
+                              DropdownButtonFormField<String>(
                                 initialValue: defaultSite.isNotEmpty ? defaultSite : managedSites.first,
                                 items: managedSites
                                     .map((id) => DropdownMenuItem<String>(value: id, child: Text(id)))
                                     .toList(),
                                 onChanged: (value) async {
                                   await appState.setPrimarySite(value);
+                                  if (value != null) _manualSite.text = value;
+                                  setState(() {});
                                 },
                                 decoration: const InputDecoration(labelText: 'Select site'),
+                              )
+                            else
+                              const Text('No managed sites loaded for this HQ user.'),
+                            const SizedBox(height: 8),
+                            TextField(
+                              controller: _manualSite,
+                              decoration: const InputDecoration(
+                                labelText: 'Override / enter site ID',
+                                hintText: 'site-123',
+                              ),
+                            ),
+                            const SizedBox(height: 8),
+                            Align(
+                              alignment: Alignment.centerRight,
+                              child: ElevatedButton.icon(
+                                onPressed: () async {
+                                  final value = _manualSite.text.trim();
+                                  await appState.setPrimarySite(value.isEmpty ? null : value);
+                                  setState(() {});
+                                },
+                                icon: const Icon(Icons.check),
+                                label: const Text('Apply site'),
                               ),
                             ),
                           ],

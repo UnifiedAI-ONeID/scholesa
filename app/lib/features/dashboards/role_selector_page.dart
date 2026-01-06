@@ -116,6 +116,7 @@ class _RoleSelectorPageState extends State<RoleSelectorPage> {
                             return;
                           }
                           final normalized = normalizeRole(entry.key);
+                          _navigated = true;
                           context.read<AppState>().setRole(normalized);
                           Navigator.pushNamedAndRemoveUntil(
                             context,
