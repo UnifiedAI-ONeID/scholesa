@@ -1,11 +1,11 @@
 {
-    "name": "app",
-    "short_name": "app",
+    "name": "Scholesa EDU",
+    "short_name": "Scholesa",
     "start_url": ".",
     "display": "standalone",
     "background_color": "#0175C2",
     "theme_color": "#0175C2",
-    "description": "A new Flutter project.",
+    "description": "Scholesa — Education 2.0 OS (Flutter web).",
     "orientation": "portrait-primary",
     "prefer_related_applications": false,
     "icons": [
