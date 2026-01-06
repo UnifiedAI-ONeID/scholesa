@@ -10,6 +10,7 @@ void registerOfflineDispatchers(OfflineQueue queue) {
   final attendanceRepository = AttendanceRepository();
   final missionAttemptRepository = MissionAttemptRepository();
   final portfolioItemRepository = PortfolioItemRepository();
+  final credentialRepository = CredentialRepository();
   final auditLogRepository = AuditLogRepository();
 
   queue.registerDispatcher('demo', (action) async {
@@ -168,6 +169,54 @@ void registerOfflineDispatchers(OfflineQueue queue) {
       return false;
     }
   });
+
+  queue.registerDispatcher('credential', (action) async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) return false;
+    final payload = action.payload;
+    final String? siteIdValue = _string(payload, 'siteId');
+    final String learnerIdValue = _string(payload, 'learnerId') ?? user.uid;
+    final String? titleValue = _string(payload, 'title');
+    final DateTime issuedAt = _parseDate(_string(payload, 'issuedAt')) ?? action.createdAt;
+    if ([siteIdValue, titleValue].any((String? v) => v == null || v.isEmpty) || learnerIdValue.isEmpty) {
+      return false;
+    }
+    final String siteId = siteIdValue!;
+    final String title = titleValue!;
+    final model = CredentialModel(
+      id: action.id,
+      siteId: siteId,
+      learnerId: learnerIdValue,
+      title: title,
+      issuedAt: Timestamp.fromDate(issuedAt),
+      pillarCodes: _stringList(payload, 'pillarCodes'),
+      skillIds: _stringList(payload, 'skillIds'),
+      createdAt: Timestamp.fromDate(action.createdAt),
+      updatedAt: Timestamp.now(),
+    );
+    try {
+      await credentialRepository.upsert(model);
+      await auditLogRepository.log(
+        AuditLogModel(
+          id: 'audit-credential-${model.id}-${action.createdAt.millisecondsSinceEpoch}',
+          actorId: user.uid,
+          actorRole: _string(payload, 'actorRole') ?? 'educator',
+          action: 'credential.upsert',
+          entityType: 'credential',
+          entityId: model.id,
+          siteId: siteId,
+          details: {
+            'learnerId': learnerIdValue,
+            'title': title,
+          },
+          createdAt: Timestamp.now(),
+        ),
+      );
+      return true;
+    } catch (_) {
+      return false;
+    }
+  });
 }
 
 Future<bool> _write(String collection, String uid, PendingAction action) async {
@@ -197,4 +246,13 @@ List<String> _stringList(Map<String, dynamic> map, String key) {
     return value.whereType<String>().where((String v) => v.isNotEmpty).toList();
   }
   return const <String>[];
+}
+
+DateTime? _parseDate(String? value) {
+  if (value == null || value.isEmpty) return null;
+  try {
+    return DateTime.parse(value);
+  } catch (_) {
+    return null;
+  }
 }

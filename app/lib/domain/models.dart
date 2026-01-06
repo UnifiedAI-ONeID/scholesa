@@ -1045,7 +1045,7 @@ class AccountabilityReviewModel {
   final String reviewerId;
   final String revieweeId;
   final String? notes;
-  final int? rating;
+  final num? rating;
   final Timestamp? createdAt;
   final Timestamp? updatedAt;
 
@@ -1057,7 +1057,7 @@ class AccountabilityReviewModel {
       reviewerId: data['reviewerId'] as String? ?? '',
       revieweeId: data['revieweeId'] as String? ?? '',
       notes: data['notes'] as String?,
-      rating: (data['rating'] as num?)?.toInt(),
+      rating: data['rating'] as num?,
       createdAt: data['createdAt'] as Timestamp?,
       updatedAt: data['updatedAt'] as Timestamp?,
     );
@@ -1071,6 +1071,49 @@ class AccountabilityReviewModel {
         'rating': rating,
         'createdAt': createdAt ?? Timestamp.now(),
         'updatedAt': updatedAt ?? Timestamp.now(),
+      };
+}
+
+@immutable
+class AnnouncementModel {
+  const AnnouncementModel({
+    required this.id,
+    required this.siteId,
+    required this.title,
+    required this.body,
+    required this.roles,
+    this.createdAt,
+    this.publishedAt,
+  });
+
+  final String id;
+  final String siteId;
+  final String title;
+  final String body;
+  final List<String> roles;
+  final Timestamp? createdAt;
+  final Timestamp? publishedAt;
+
+  factory AnnouncementModel.fromDoc(DocumentSnapshot<Map<String, dynamic>> doc) {
+    final data = doc.data() ?? <String, dynamic>{};
+    return AnnouncementModel(
+      id: doc.id,
+      siteId: data['siteId'] as String? ?? '',
+      title: data['title'] as String? ?? '',
+      body: data['body'] as String? ?? '',
+      roles: List<String>.from(data['roles'] as List? ?? const <String>[]),
+      createdAt: data['createdAt'] as Timestamp?,
+      publishedAt: data['publishedAt'] as Timestamp?,
+    );
+  }
+
+  Map<String, dynamic> toMap() => <String, dynamic>{
+        'siteId': siteId,
+        'title': title,
+        'body': body,
+        'roles': roles,
+        'createdAt': createdAt ?? Timestamp.now(),
+        'publishedAt': publishedAt,
       };
 }
 

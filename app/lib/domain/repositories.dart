@@ -105,6 +105,15 @@ class AttendanceRepository {
     final snap = await _col.where('siteId', isEqualTo: siteId).get();
     return snap.docs.map(AttendanceRecordModel.fromDoc).toList();
   }
+
+  Future<List<AttendanceRecordModel>> listRecentBySite(String siteId, {int limit = 10}) async {
+    final snap = await _col
+        .where('siteId', isEqualTo: siteId)
+        .orderBy('createdAt', descending: true)
+        .limit(limit)
+        .get();
+    return snap.docs.map(AttendanceRecordModel.fromDoc).toList();
+  }
 }
 
 class PillarRepository {
@@ -189,6 +198,15 @@ class CredentialRepository {
   CollectionReference<Map<String, dynamic>> get _col => FirebaseFirestore.instance.collection('credentials');
 
   Future<void> upsert(CredentialModel model) => _col.doc(model.id).set(model.toMap(), SetOptions(merge: true));
+
+  Future<List<CredentialModel>> listByLearner(String learnerId, {String? siteId, int limit = 10}) async {
+    Query<Map<String, dynamic>> query = _col.where('learnerId', isEqualTo: learnerId).orderBy('issuedAt', descending: true).limit(limit);
+    if (siteId != null && siteId.isNotEmpty) {
+      query = query.where('siteId', isEqualTo: siteId);
+    }
+    final snap = await query.get();
+    return snap.docs.map(CredentialModel.fromDoc).toList();
+  }
 }
 
 class AccountabilityCycleRepository {
@@ -201,6 +219,11 @@ class AccountabilityKPIRepository {
   CollectionReference<Map<String, dynamic>> get _col => FirebaseFirestore.instance.collection('accountabilityKPIs');
 
   Future<void> upsert(AccountabilityKPIModel model) => _col.doc(model.id).set(model.toMap(), SetOptions(merge: true));
+
+  Future<List<AccountabilityKPIModel>> listRecent({int limit = 6}) async {
+    final snap = await _col.orderBy('updatedAt', descending: true).limit(limit).get();
+    return snap.docs.map(AccountabilityKPIModel.fromDoc).toList();
+  }
 }
 
 class AccountabilityCommitmentRepository {
@@ -219,4 +242,18 @@ class AuditLogRepository {
   CollectionReference<Map<String, dynamic>> get _col => FirebaseFirestore.instance.collection('auditLogs');
 
   Future<void> log(AuditLogModel model) => _col.doc(model.id).set(model.toMap());
+}
+
+class AnnouncementRepository {
+  CollectionReference<Map<String, dynamic>> get _col => FirebaseFirestore.instance.collection('announcements');
+
+  Future<List<AnnouncementModel>> listBySiteAndRole({required String siteId, required String role}) async {
+    final snap = await _col
+        .where('siteId', isEqualTo: siteId)
+        .where('roles', arrayContains: role)
+        .orderBy('createdAt', descending: true)
+        .limit(10)
+        .get();
+    return snap.docs.map(AnnouncementModel.fromDoc).toList();
+  }
 }

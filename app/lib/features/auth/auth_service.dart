@@ -1,6 +1,8 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 
+import 'role_routes.dart';
+
 class EntitlementsResult {
   const EntitlementsResult({required this.roles, required this.siteIds, this.primarySiteId});
 
@@ -46,7 +48,10 @@ class AuthService implements AuthServiceBase {
 
     // 1) Custom claims take precedence when present.
     final idToken = await user.getIdTokenResult(true);
-    final claimRoles = _parseRoles(idToken.claims?['roles']);
+    final claimRoles = <String>{}
+      ..addAll(_parseRoles(idToken.claims?['roles']))
+      ..addAll(_parseRoles(idToken.claims?['role']))
+      ..addAll(_parseRoles(idToken.claims?['entitlements']));
     if (claimRoles.isNotEmpty) {
       return EntitlementsResult(roles: claimRoles, siteIds: <String>[], primarySiteId: null);
     }
@@ -75,21 +80,24 @@ class AuthService implements AuthServiceBase {
   }
 
   Set<String> _parseRoles(dynamic source) {
+    final roles = <String>{};
     if (source is List) {
-      return source
-          .whereType<String>()
-          .map((String role) => role.trim())
-          .where((String role) => role.isNotEmpty)
-          .toSet();
+      roles.addAll(
+        source
+            .whereType<String>()
+            .map((String role) => role.trim())
+            .where((String role) => role.isNotEmpty),
+      );
     }
     if (source is String) {
-      return source
-          .split(',')
-          .map((String role) => role.trim())
-          .where((String role) => role.isNotEmpty)
-          .toSet();
+      roles.addAll(
+        source
+            .split(',')
+            .map((String role) => role.trim())
+            .where((String role) => role.isNotEmpty),
+      );
     }
-    return <String>{};
+    return roles.map(normalizeRole).toSet();
   }
 
   List<String> _parseSiteIds(dynamic source) {

@@ -14,6 +14,11 @@ class OfflineBanner extends StatelessWidget {
   Widget build(BuildContext context) {
     return Consumer2<OfflineService, OfflineQueue>(
       builder: (context, offline, queue, _) {
+        // Ensure queue is loaded before showing state; call once.
+        if (!queue.initialized) {
+          queue.load();
+        }
+
         if (!offline.isOffline && queue.initialized) {
           // Kick off a flush as soon as we're back online; guard via queue.
           SchedulerBinding.instance.addPostFrameCallback((_) {
@@ -21,13 +26,18 @@ class OfflineBanner extends StatelessWidget {
           });
         }
 
-        final banner = offline.isOffline
+        final showOffline = offline.isOffline;
+        final showPendingOnline = !offline.isOffline && queue.hasPending;
+
+        final banner = (showOffline || showPendingOnline)
             ? Container(
                 width: double.infinity,
                 padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
                 decoration: BoxDecoration(
-                  gradient: const LinearGradient(
-                    colors: [Color(0xFFef4444), Color(0xFFb91c1c)],
+                  gradient: LinearGradient(
+                    colors: showOffline
+                        ? const [Color(0xFFef4444), Color(0xFFb91c1c)]
+                        : const [Color(0xFF0ea5e9), Color(0xFF0284c7)],
                     begin: Alignment.centerLeft,
                     end: Alignment.centerRight,
                   ),
@@ -45,16 +55,57 @@ class OfflineBanner extends StatelessWidget {
                 ),
                 child: Row(
                   children: [
-                    const Icon(Icons.wifi_off, color: Colors.white),
+                    Icon(
+                      showOffline
+                          ? Icons.wifi_off
+                          : (queue.isFlushing ? Icons.sync : Icons.cloud_upload),
+                      color: Colors.white,
+                    ),
                     const SizedBox(width: 10),
                     Expanded(
-                      child: Text(
-                        queue.hasPending
-                            ? 'Offline with ${queue.pending.length} update(s) queued. We will sync on reconnect.'
-                            : 'You are offline. Changes will sync when you reconnect.',
-                        style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w600),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            showOffline
+                                ? (queue.hasPending
+                                    ? 'Offline • ${queue.pending.length} update(s) queued. Will sync on reconnect.'
+                                    : 'You are offline. Changes will sync on reconnect.')
+                                : queue.isFlushing
+                                    ? 'Syncing ${queue.pending.length} queued update(s)...'
+                                    : '${queue.pending.length} update(s) queued. Tap sync to send now.',
+                            style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w700),
+                          ),
+                          if (queue.lastSyncedAt != null)
+                            Text(
+                              'Last synced ${_formatTime(queue.lastSyncedAt!)}',
+                              style: const TextStyle(color: Colors.white70, fontSize: 12),
+                            ),
+                        ],
                       ),
                     ),
+                    if (!showOffline)
+                      TextButton.icon(
+                        onPressed: queue.isFlushing
+                            ? null
+                            : () {
+                                queue.flush(online: true);
+                              },
+                        style: TextButton.styleFrom(
+                          foregroundColor: Colors.white,
+                        ),
+                        icon: queue.isFlushing
+                            ? const SizedBox(
+                                height: 16,
+                                width: 16,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                  valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                                ),
+                              )
+                            : const Icon(Icons.sync),
+                        label: Text(queue.isFlushing ? 'Syncing...' : 'Sync now'),
+                      ),
                   ],
                 ),
               )
@@ -74,5 +125,12 @@ class OfflineBanner extends StatelessWidget {
         );
       },
     );
+  }
+
+  String _formatTime(DateTime time) {
+    final local = time.toLocal();
+    final h = local.hour.toString().padLeft(2, '0');
+    final m = local.minute.toString().padLeft(2, '0');
+    return '$h:$m';
   }
 }

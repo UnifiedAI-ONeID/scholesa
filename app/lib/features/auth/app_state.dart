@@ -3,6 +3,7 @@ import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'auth_service.dart';
+import 'role_routes.dart';
 
 class AppState extends ChangeNotifier {
   AppState({AuthServiceBase? authService}) : _authService = authService ?? AuthService();
@@ -57,7 +58,10 @@ class AppState extends ChangeNotifier {
 
   Future<void> refreshEntitlements() async {
     final result = await _authService.loadEntitlements();
-    _entitlements = result.roles.isNotEmpty ? result.roles : const {'learner'};
+    final normalizedRoles = result.roles.isNotEmpty
+        ? result.roles.map(normalizeRole).toSet()
+        : const {'learner'};
+    _entitlements = normalizedRoles;
     _siteIds = result.siteIds;
     final preferredFromClaims = result.primarySiteId ?? (_siteIds.isNotEmpty ? _siteIds.first : null);
     final preferredPersisted = _persistedSiteLoaded &&

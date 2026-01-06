@@ -77,6 +77,7 @@ class OfflineQueue extends ChangeNotifier {
   final Map<String, Future<bool> Function(PendingAction)> _dispatchers = {};
   bool _initialized = false;
   bool _isFlushing = false;
+  DateTime? _lastSyncedAt;
 
   Isar? _isar;
   Future<void>? _loadFuture;
@@ -84,6 +85,8 @@ class OfflineQueue extends ChangeNotifier {
   List<PendingAction> get pending => List.unmodifiable(_pending);
   bool get hasPending => _pending.isNotEmpty;
   bool get initialized => _initialized;
+  DateTime? get lastSyncedAt => _lastSyncedAt;
+  bool get isFlushing => _isFlushing;
 
   Future<void> load() async {
     _loadFuture ??= _init();
@@ -128,8 +131,12 @@ class OfflineQueue extends ChangeNotifier {
           remaining.add(action);
           continue;
         }
-        final sent = await dispatcher(action);
-        if (!sent) {
+        try {
+          final sent = await dispatcher(action);
+          if (!sent) {
+            remaining.add(action);
+          }
+        } catch (_) {
           remaining.add(action);
         }
       }
@@ -137,6 +144,9 @@ class OfflineQueue extends ChangeNotifier {
         ..clear()
         ..addAll(remaining);
       await _persistAll();
+      if (remaining.isEmpty) {
+        _lastSyncedAt = DateTime.now();
+      }
     } finally {
       _isFlushing = false;
       notifyListeners();

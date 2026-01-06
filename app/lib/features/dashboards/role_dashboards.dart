@@ -1,2793 +1,1408 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
-import '../../domain/repositories.dart';
 import '../../domain/models.dart';
-import '../auth/app_state.dart';
-import '../auth/auth_service.dart';
-import '../offline/offline_actions.dart';
+import '../../domain/repositories.dart';
 import '../offline/offline_queue.dart';
 import '../offline/offline_service.dart';
 
-const List<String> pillarChips = <String>['Future Skills', 'Leadership & Agency', 'Impact & Innovation'];
-
-const Map<String, List<DashboardCard>> roleCards = <String, List<DashboardCard>>{
-  'learner': <DashboardCard>[
-    DashboardCard(
-      title: 'Missions in progress',
-      description: 'Track your active missions and submit reflections.',
-      pillar: 'Future Skills',
-    ),
-    DashboardCard(
-      title: 'Leadership moments',
-      description: 'Log agency wins and peer collaborations.',
-      pillar: 'Leadership & Agency',
-    ),
-    DashboardCard(
-      title: 'Impact portfolio',
-      description: 'Capture artifacts that evidence real-world impact.',
-      pillar: 'Impact & Innovation',
-    ),
-  ],
-  'educator': <DashboardCard>[
-    DashboardCard(
-      title: 'Today’s sessions',
-      description: 'Review rosters and prep materials.',
-      pillar: 'Future Skills',
-    ),
-    DashboardCard(
-      title: 'Attendance + notes',
-      description: 'Mark presence and add quick observations.',
-      pillar: 'Leadership & Agency',
-    ),
-    DashboardCard(
-      title: 'Mission reviews',
-      description: 'Approve submissions and coach next steps.',
-      pillar: 'Impact & Innovation',
-    ),
-  ],
-  'parent': <DashboardCard>[
-    DashboardCard(
-      title: 'Learner updates',
-      description: 'See weekly highlights and coach at home.',
-      pillar: 'Leadership & Agency',
-    ),
-    DashboardCard(
-      title: 'Portfolio gallery',
-      description: 'Browse evidence and celebrate progress.',
-      pillar: 'Impact & Innovation',
-    ),
-  ],
-  'site': <DashboardCard>[
-    DashboardCard(
-      title: 'Site pulse',
-      description: 'Attendance, staffing, and upcoming sessions.',
-      pillar: 'Future Skills',
-    ),
-    DashboardCard(
-      title: 'Team actions',
-      description: 'Assign follow-ups and track blockers.',
-      pillar: 'Leadership & Agency',
-    ),
-  ],
-  'partner': <DashboardCard>[
-    DashboardCard(
-      title: 'Deliverables',
-      description: 'Review contracts and submission deadlines.',
-      pillar: 'Impact & Innovation',
-    ),
-  ],
-  'hq': <DashboardCard>[
-    DashboardCard(
-      title: 'Network health',
-      description: 'Cross-site KPIs and escalations.',
-      pillar: 'Leadership & Agency',
-    ),
-    DashboardCard(
-      title: 'Program insights',
-      description: 'Mission performance and impact trends.',
-      pillar: 'Impact & Innovation',
-    ),
-  ],
-};
-
+/// Role dashboard with lean attendance + mission submission slices.
 class RoleDashboard extends StatelessWidget {
   const RoleDashboard({super.key, required this.role});
 
   final String role;
 
-  String get title {
-    switch (role) {
-      case 'learner':
-        return 'Learner Dashboard';
-      case 'educator':
-        return 'Educator Dashboard';
-      case 'parent':
-        return 'Parent Dashboard';
-      case 'site':
-        return 'Site Lead Dashboard';
-      case 'partner':
-        return 'Partner Dashboard';
-      case 'hq':
-        return 'HQ Dashboard';
-      default:
-        return 'Dashboard';
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
-    final appState = context.watch<AppState>();
-    final queue = context.watch<OfflineQueue>();
-    final offline = context.watch<OfflineService>();
-    final currentRole = appState.role ?? role;
-    final entitlements = appState.entitlements;
-    final siteIds = appState.siteIds;
-    final String? activeSiteId = appState.primarySiteId ?? (siteIds.isNotEmpty ? siteIds.first : null);
-    final isSiteScoped = currentRole == 'educator' || currentRole == 'site';
-    if (FirebaseAuth.instance.currentUser == null) {
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        Navigator.pushNamedAndRemoveUntil(context, '/login', (route) => false);
-      });
-    }
-    if (!entitlements.contains(currentRole)) {
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        Navigator.pushNamedAndRemoveUntil(context, '/roles', (route) => false);
-      });
-    }
-
     return Scaffold(
-      body: Container(
-        decoration: const BoxDecoration(
-          gradient: LinearGradient(
-            colors: [Color(0xFF0B1224), Color(0xFF0F172A), Color(0xFF0B1224)],
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-          ),
-        ),
-        child: SafeArea(
-          child: Center(
-            child: ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 780),
-              child: ListView(
-                padding: const EdgeInsets.fromLTRB(16, 16, 16, 28),
-                children: <Widget>[
-                  LayoutBuilder(
-                    builder: (context, constraints) {
-                      final isCompact = constraints.maxWidth < 420;
-                      final header = Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            title,
-                            style: const TextStyle(color: Colors.white, fontSize: 24, fontWeight: FontWeight.w800),
-                          ),
-                          const SizedBox(height: 4),
-                          const Text(
-                            'Aligned to Future Skills, Leadership & Agency, Impact & Innovation.',
-                            style: TextStyle(color: Colors.white70),
-                          ),
-                        ],
-                      );
-
-                      final signOut = IconButton(
-                        icon: const Icon(Icons.logout, color: Colors.white70),
-                        onPressed: () {
-                          AuthService().signOut();
-                          appState.clearRole();
-                          Navigator.pushNamedAndRemoveUntil(context, '/login', (route) => false);
-                        },
-                      );
-
-                      if (isCompact) {
-                        return Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            header,
-                            const SizedBox(height: 12),
-                            Align(
-                              alignment: Alignment.centerLeft,
-                              child: signOut,
-                            ),
-                          ],
-                        );
-                      }
-
-                      return Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        crossAxisAlignment: CrossAxisAlignment.center,
-                        children: [
-                          Expanded(child: header),
-                          signOut,
-                        ],
-                      );
-                    },
-                  ),
+      appBar: AppBar(title: Text('Dashboard • $role')),
+      body: SafeArea(
+        child: Consumer2<OfflineQueue, OfflineService>(
+          builder: (context, queue, offline, _) {
+            return SingleChildScrollView(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  _QueueStatus(queue: queue, offline: offline),
                   const SizedBox(height: 12),
-                  _OfflineQueueCard(queue: queue, offline: offline),
-                  if (currentRole == 'learner' && activeSiteId != null) ...[
-                    const SizedBox(height: 12),
-                    _MissionAttemptForm(queue: queue, siteId: activeSiteId, appState: appState),
-                    const SizedBox(height: 12),
-                    _MissionListCard(siteId: activeSiteId, learnerId: appState.user?.uid),
-                    const SizedBox(height: 12),
-                    _PortfolioItemForm(queue: queue, siteId: activeSiteId, appState: appState),
-                  ],
-                  if ((currentRole == 'educator' || currentRole == 'site') && activeSiteId != null) ...[
-                    const SizedBox(height: 12),
-                    _AttendanceForm(queue: queue, siteId: activeSiteId, appState: appState),
-                  ],
-                  if (currentRole == 'parent' && activeSiteId != null) ...[
-                    const SizedBox(height: 12),
-                      _AttendanceForm(queue: queue, siteId: activeSiteId, appState: appState),
-                      const SizedBox(height: 12),
-                      _AttendanceDemoCard(queue: queue, siteId: activeSiteId),
-                      const SizedBox(height: 12),
-                      _ParentSummaryCard(appState: appState, siteId: activeSiteId),
-                  ],
-                  if ((currentRole == 'site' || currentRole == 'hq') && activeSiteId != null) ...[
-                    const SizedBox(height: 12),
-                    _AdminProvisioningCard(siteId: activeSiteId, appState: appState),
-                    const SizedBox(height: 12),
-                    _UserManagementCard(siteId: activeSiteId, appState: appState),
-                  ],
-                  if (currentRole == 'site' && activeSiteId != null) ...[
-                    const SizedBox(height: 12),
-                    _SiteSessionForm(siteId: activeSiteId, appState: appState),
-                  ],
-                  if (currentRole == 'partner') ...[
-                    const SizedBox(height: 12),
-                    _PartnerDeliverableForm(appState: appState),
-                  ],
-                  if (currentRole == 'hq') ...[
-                    const SizedBox(height: 12),
-                    _HqKpiForm(appState: appState),
-                  ],
-                  if ((currentRole == 'educator' || currentRole == 'site') && activeSiteId != null) ...[
-                    const SizedBox(height: 12),
-                    _AttendanceDemoCard(queue: queue, siteId: activeSiteId),
-                  ],
-                  const SizedBox(height: 12),
-                  Container(
-                    padding: const EdgeInsets.all(16),
-                    decoration: BoxDecoration(
-                      gradient: const LinearGradient(
-                        colors: [Color(0xFF38BDF8), Color(0xFF6366F1)],
-                        begin: Alignment.topLeft,
-                        end: Alignment.bottomRight,
-                      ),
-                      borderRadius: BorderRadius.circular(16),
-                      boxShadow: const [BoxShadow(color: Colors.black45, blurRadius: 16, offset: Offset(0, 12))],
-                    ),
-                    child: Row(
-                      children: [
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                'Active role',
-                                style: TextStyle(color: Colors.white.withValues(alpha: 0.8), fontSize: 12, fontWeight: FontWeight.w600),
-                              ),
-                              const SizedBox(height: 6),
-                              Text(
-                                title,
-                                style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.w800),
-                              ),
-                              const SizedBox(height: 8),
-                              Text(
-                                isSiteScoped && activeSiteId != null
-                                    ? 'Site scoped • $activeSiteId'
-                                    : 'Multi-role ready',
-                                style: const TextStyle(color: Colors.white70, fontSize: 13),
-                              ),
-                            ],
-                          ),
-                        ),
-                        Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                          decoration: BoxDecoration(
-                            color: Colors.white.withValues(alpha: 0.15),
-                            borderRadius: BorderRadius.circular(12),
-                            border: Border.all(color: Colors.white24),
-                          ),
-                          child: Column(
-                            children: [
-                              const Text('Pillars', style: TextStyle(color: Colors.white70, fontSize: 12, fontWeight: FontWeight.w600)),
-                              const SizedBox(height: 6),
-                              Row(
-                                mainAxisSize: MainAxisSize.min,
-                                children: const [
-                                  _Dot(color: Color(0xFF38BDF8)),
-                                  SizedBox(width: 6),
-                                  _Dot(color: Color(0xFFF59E0B)),
-                                  SizedBox(width: 6),
-                                  _Dot(color: Color(0xFF22C55E)),
-                                ],
-                              )
-                            ],
-                          ),
-                        )
-                      ],
-                    ),
-                  ),
+                  _QueueInspector(queue: queue),
                   const SizedBox(height: 16),
-                  if (isSiteScoped)
-                    Container(
-                      padding: const EdgeInsets.all(12),
-                      decoration: BoxDecoration(
-                        color: Colors.white.withValues(alpha: 0.06),
-                        borderRadius: BorderRadius.circular(14),
-                        border: Border.all(color: Colors.white10),
-                      ),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          const Text('Active site', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w700)),
-                          const SizedBox(height: 10),
-                          if (siteIds.isEmpty)
-                            const Text('No sites assigned. Ask your site lead to add you to a site.', style: TextStyle(color: Colors.white70))
-                          else
-                            DropdownButtonFormField<String>(
-                              initialValue: activeSiteId,
-                              dropdownColor: const Color(0xFF0F172A),
-                              iconEnabledColor: Colors.white,
-                              items: siteIds
-                                  .map(
-                                    (String id) => DropdownMenuItem<String>(
-                                      value: id,
-                                      child: Text(id, style: const TextStyle(color: Colors.white)),
-                                    ),
-                                  )
-                                  .toList(),
-                              onChanged: (String? value) => context.read<AppState>().setPrimarySite(value),
-                              decoration: InputDecoration(
-                                labelText: 'Site',
-                                labelStyle: const TextStyle(color: Colors.white70),
-                                filled: true,
-                                fillColor: Colors.white.withValues(alpha: 0.05),
-                                enabledBorder: OutlineInputBorder(
-                                  borderRadius: BorderRadius.circular(12),
-                                  borderSide: const BorderSide(color: Colors.white24),
-                                ),
-                                focusedBorder: OutlineInputBorder(
-                                  borderRadius: BorderRadius.circular(12),
-                                  borderSide: const BorderSide(color: Color(0xFF38BDF8)),
-                                ),
-                              ),
-                              style: const TextStyle(color: Colors.white),
-                            ),
-                        ],
-                      ),
-                    ),
-                  const SizedBox(height: 14),
-                  Wrap(
-                    spacing: 10,
-                    runSpacing: 8,
-                    children: pillarChips
-                        .map(
-                          (String label) => Chip(
-                            label: Text(label),
-                            backgroundColor: Colors.white.withValues(alpha: 0.08),
-                            labelStyle: const TextStyle(color: Colors.white, fontWeight: FontWeight.w600),
-                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12), side: const BorderSide(color: Colors.white24)),
-                          ),
-                        )
-                        .toList(),
-                  ),
-                  const SizedBox(height: 16),
-                  ...List<Widget>.from(
-                    (roleCards[currentRole] ?? roleCards['learner'] ?? <DashboardCard>[])
-                        .map((DashboardCard card) => DashboardCardView(card: card)),
-                  ),
-                  const SizedBox(height: 12),
-                  DashboardDataList(role: currentRole, siteId: activeSiteId),
+                  if (role == 'hq') ...[
+                    const _CardTitle('Site provisioning'),
+                    const _SiteProvisionCard(),
+                    const SizedBox(height: 16),
+                  ],
+                  if (role == 'educator' || role == 'site') ...[
+                    const _CardTitle('Quick attendance'),
+                    _AttendanceCard(),
+                    const SizedBox(height: 24),
+                  ],
+                  const _CardTitle('Submit mission attempt'),
+                  _MissionAttemptCard(role: role),
+                  const SizedBox(height: 24),
+                  const _CardTitle('Portfolio'),
+                  _PortfolioCard(role: role),
+                  const SizedBox(height: 24),
+                  if (role == 'educator' || role == 'hq' || role == 'site') ...[
+                    const _CardTitle('Issue credential'),
+                    _CredentialCard(role: role),
+                    const SizedBox(height: 24),
+                  ],
+                  const _CardTitle('KPIs'),
+                  _KpiCard(role: role),
+                  const SizedBox(height: 24),
+                  const _CardTitle('Announcements'),
+                  _AnnouncementCard(role: role),
                 ],
               ),
-            ),
-          ),
+            );
+          },
         ),
       ),
     );
   }
 }
 
-class _OfflineQueueCard extends StatelessWidget {
-  const _OfflineQueueCard({required this.queue, required this.offline});
+class _PortfolioCard extends StatefulWidget {
+  const _PortfolioCard({required this.role});
+
+  final String role;
+
+  @override
+  State<_PortfolioCard> createState() => _PortfolioCardState();
+}
+
+class _PortfolioCardState extends State<_PortfolioCard> {
+  final _siteId = TextEditingController();
+  final _learnerId = TextEditingController();
+  final _title = TextEditingController();
+  final _description = TextEditingController();
+  final _artifactUrls = TextEditingController();
+  final _pillarCodes = TextEditingController(text: 'FUTURE_SKILLS,LEADERSHIP_AGENCY,IMPACT_INNOVATION');
+  final _pillarFilter = TextEditingController();
+  final _skillIds = TextEditingController();
+  final _repo = PortfolioItemRepository();
+  List<PortfolioItemModel> _items = <PortfolioItemModel>[];
+  bool _submitting = false;
+  bool _loading = false;
+
+  @override
+  void initState() {
+    super.initState();
+    final user = FirebaseAuth.instance.currentUser;
+    if (user != null) {
+      _learnerId.text = user.uid;
+    }
+  }
+
+  @override
+  void dispose() {
+    _siteId.dispose();
+    _learnerId.dispose();
+    _title.dispose();
+    _description.dispose();
+    _artifactUrls.dispose();
+    _pillarCodes.dispose();
+    _pillarFilter.dispose();
+    _skillIds.dispose();
+    super.dispose();
+  }
+
+  Future<void> _submit() async {
+    final siteId = _siteId.text.trim();
+    final learnerId = _learnerId.text.trim().isEmpty
+        ? (FirebaseAuth.instance.currentUser?.uid ?? '')
+        : _learnerId.text.trim();
+    final title = _title.text.trim();
+    if (siteId.isEmpty || learnerId.isEmpty || title.isEmpty) {
+      _toast('Fill site, learner, and title.');
+      return;
+    }
+    setState(() => _submitting = true);
+    final queue = context.read<OfflineQueue>();
+    final offline = context.read<OfflineService>();
+    final action = PendingAction(
+      id: _buildId('portfolio', learnerId),
+      type: 'portfolioItem',
+      payload: {
+        'siteId': siteId,
+        'learnerId': learnerId,
+        'title': title,
+        'description': _description.text.trim().isEmpty ? null : _description.text.trim(),
+        'artifactUrls': _splitList(_artifactUrls.text),
+        'pillarCodes': _splitList(_pillarCodes.text),
+        'skillIds': _splitList(_skillIds.text),
+        'actorRole': widget.role,
+      },
+      createdAt: DateTime.now().toUtc(),
+    );
+    await queue.enqueue(action);
+    await queue.flush(online: !offline.isOffline);
+    if (!mounted) return;
+    setState(() => _submitting = false);
+    _toast(offline.isOffline ? 'Queued offline' : 'Saved portfolio item');
+    if (!offline.isOffline) {
+      await _load(silent: true);
+    }
+  }
+
+  Future<void> _load({bool silent = false}) async {
+    final learnerId = _learnerId.text.trim().isEmpty
+        ? (FirebaseAuth.instance.currentUser?.uid ?? '')
+        : _learnerId.text.trim();
+    if (learnerId.isEmpty) {
+      if (!silent) _toast('Enter learner ID');
+      return;
+    }
+    setState(() => _loading = true);
+    try {
+      final items = await _repo.listByLearner(learnerId);
+      if (!mounted) return;
+      final siteFilter = _siteId.text.trim();
+      Iterable<PortfolioItemModel> filtered = items;
+      if (siteFilter.isNotEmpty) {
+        filtered = filtered.where((i) => i.siteId == siteFilter);
+      }
+      final pillarFilter = _pillarFilter.text.trim().toUpperCase();
+      if (pillarFilter.isNotEmpty) {
+        filtered = filtered.where((i) => i.pillarCodes.any((p) => p.toUpperCase().contains(pillarFilter)));
+      }
+      final list = filtered.toList();
+      setState(() => _items = list);
+    } finally {
+      if (mounted) setState(() => _loading = false);
+    }
+  }
+
+  List<String> _splitList(String text) {
+    return text
+        .split(',')
+        .map((v) => v.trim())
+        .where((v) => v.isNotEmpty)
+        .toList();
+  }
+
+  void _toast(String msg) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
+  }
+
+  Future<void> _copyLink(String url) async {
+    await Clipboard.setData(ClipboardData(text: url));
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Link copied')));
+  }
+
+  String _fmt(DateTime? dt) {
+    if (dt == null) return '';
+    final local = dt.toLocal();
+    final y = local.year.toString();
+    final m = local.month.toString().padLeft(2, '0');
+    final d = local.day.toString().padLeft(2, '0');
+    final h = local.hour.toString().padLeft(2, '0');
+    final min = local.minute.toString().padLeft(2, '0');
+    return '$y-$m-$d $h:$min';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final offline = context.watch<OfflineService>().isOffline;
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(12),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            _LabeledField(label: 'Site ID', controller: _siteId, hint: 'site-123'),
+            const SizedBox(height: 8),
+            _LabeledField(label: 'Learner ID', controller: _learnerId, hint: 'learner-123 (defaults to you)'),
+            const SizedBox(height: 8),
+            _LabeledField(label: 'Title', controller: _title, hint: 'Prototype submission'),
+            const SizedBox(height: 8),
+            _LabeledField(label: 'Description', controller: _description, hint: 'Reflection or summary'),
+            const SizedBox(height: 8),
+            _LabeledField(label: 'Artifact URLs (comma separated)', controller: _artifactUrls, hint: 'https://...'),
+            const SizedBox(height: 8),
+            _LabeledField(label: 'Pillar codes (comma separated)', controller: _pillarCodes, hint: 'FUTURE_SKILLS'),
+            const SizedBox(height: 8),
+            _LabeledField(
+              label: 'Filter by pillar (optional)',
+              controller: _pillarFilter,
+              hint: 'FUTURE_SKILLS',
+              onChanged: (_) => _load(silent: true),
+            ),
+            const SizedBox(height: 8),
+            _LabeledField(label: 'Skill IDs (comma separated)', controller: _skillIds, hint: 'skill-123'),
+            const SizedBox(height: 12),
+            Row(
+              children: [
+                ElevatedButton.icon(
+                  onPressed: _submitting ? null : _submit,
+                  icon: _submitting
+                      ? const SizedBox(height: 16, width: 16, child: CircularProgressIndicator(strokeWidth: 2))
+                      : const Icon(Icons.add_box),
+                  label: Text(_submitting ? 'Saving...' : 'Add portfolio item'),
+                ),
+                const SizedBox(width: 8),
+                TextButton.icon(
+                  onPressed: _loading || offline ? null : _load,
+                  icon: _loading
+                      ? const SizedBox(height: 16, width: 16, child: CircularProgressIndicator(strokeWidth: 2))
+                      : const Icon(Icons.refresh),
+                  label: Text(_loading ? 'Loading...' : 'Load items'),
+                ),
+                const Spacer(),
+                if (offline)
+                  const Row(
+                    children: [
+                      Icon(Icons.wifi_off, color: Colors.redAccent),
+                      SizedBox(width: 4),
+                      Text('Offline', style: TextStyle(color: Colors.redAccent)),
+                    ],
+                  ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            if (_items.isEmpty)
+              const Text('No portfolio items loaded yet.')
+            else
+              ListView.separated(
+                shrinkWrap: true,
+                physics: const NeverScrollableScrollPhysics(),
+                itemCount: _items.length,
+                separatorBuilder: (_, index) => const Divider(height: 1),
+                itemBuilder: (context, index) {
+                  final item = _items[index];
+                  final created = item.createdAt?.toDate();
+                  return ListTile(
+                    title: Text(item.title),
+                    subtitle: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        if (item.description != null && item.description!.isNotEmpty)
+                          Text(item.description!),
+                        Text('Site: ${item.siteId}', style: const TextStyle(fontSize: 12, color: Colors.black54)),
+                        if (created != null)
+                          Text(_fmt(created), style: const TextStyle(fontSize: 12, color: Colors.black54)),
+                        if (item.artifactUrls.isNotEmpty)
+                          Padding(
+                            padding: const EdgeInsets.only(top: 4),
+                            child: Wrap(
+                              spacing: 6,
+                              runSpacing: 6,
+                              children: item.artifactUrls
+                                  .map(
+                                    (url) => ActionChip(
+                                      avatar: const Icon(Icons.link, size: 16),
+                                      label: Text(url.length > 20 ? '${url.substring(0, 20)}…' : url),
+                                      onPressed: () => _copyLink(url),
+                                    ),
+                                  )
+                                  .toList(),
+                            ),
+                          ),
+                      ],
+                    ),
+                    trailing: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      crossAxisAlignment: CrossAxisAlignment.end,
+                      children: [
+                        if (item.pillarCodes.isNotEmpty)
+                          Wrap(
+                            spacing: 4,
+                            runSpacing: 4,
+                            children: item.pillarCodes
+                                .map((p) => Chip(label: Text(p), padding: EdgeInsets.zero, materialTapTargetSize: MaterialTapTargetSize.shrinkWrap))
+                                .toList(),
+                          ),
+                        if (item.skillIds.isNotEmpty)
+                          Text('${item.skillIds.length} skill link(s)',
+                              style: const TextStyle(fontSize: 12, color: Colors.black54)),
+                      ],
+                    ),
+                  );
+                },
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _CredentialCard extends StatefulWidget {
+  const _CredentialCard({required this.role});
+
+  final String role;
+
+  @override
+  State<_CredentialCard> createState() => _CredentialCardState();
+}
+
+class _CredentialCardState extends State<_CredentialCard> {
+  final _siteId = TextEditingController();
+  final _learnerId = TextEditingController();
+  final _title = TextEditingController();
+  final _pillarCodes = TextEditingController(text: 'FUTURE_SKILLS,LEADERSHIP_AGENCY,IMPACT_INNOVATION');
+  final _skillIds = TextEditingController();
+  final _repo = CredentialRepository();
+  List<CredentialModel> _items = <CredentialModel>[];
+  bool _submitting = false;
+  bool _loading = false;
+
+  @override
+  void dispose() {
+    _siteId.dispose();
+    _learnerId.dispose();
+    _title.dispose();
+    _pillarCodes.dispose();
+    _skillIds.dispose();
+    super.dispose();
+  }
+
+  Future<void> _submit() async {
+    final siteId = _siteId.text.trim();
+    final learnerId = _learnerId.text.trim().isEmpty
+        ? (FirebaseAuth.instance.currentUser?.uid ?? '')
+        : _learnerId.text.trim();
+    final title = _title.text.trim();
+    if (siteId.isEmpty || learnerId.isEmpty || title.isEmpty) {
+      _toast('Fill site, learner, and title.');
+      return;
+    }
+    setState(() => _submitting = true);
+    final queue = context.read<OfflineQueue>();
+    final offline = context.read<OfflineService>();
+    final now = DateTime.now().toUtc();
+    final action = PendingAction(
+      id: _buildId('credential', learnerId),
+      type: 'credential',
+      payload: {
+        'siteId': siteId,
+        'learnerId': learnerId,
+        'title': title,
+        'pillarCodes': _splitList(_pillarCodes.text),
+        'skillIds': _splitList(_skillIds.text),
+        'issuedAt': now.toIso8601String(),
+        'actorRole': widget.role,
+      },
+      createdAt: now,
+    );
+    await queue.enqueue(action);
+    await queue.flush(online: !offline.isOffline);
+    if (!mounted) return;
+    setState(() => _submitting = false);
+    _toast(offline.isOffline ? 'Queued offline' : 'Credential saved');
+  }
+
+  Future<void> _load() async {
+    final learnerId = _learnerId.text.trim().isEmpty
+        ? (FirebaseAuth.instance.currentUser?.uid ?? '')
+        : _learnerId.text.trim();
+    if (learnerId.isEmpty) {
+      _toast('Enter learner ID');
+      return;
+    }
+    setState(() => _loading = true);
+    try {
+      final items = await _repo.listByLearner(learnerId, siteId: _siteId.text.trim().isEmpty ? null : _siteId.text.trim());
+      if (!mounted) return;
+      setState(() => _items = items);
+    } finally {
+      if (mounted) setState(() => _loading = false);
+    }
+  }
+
+  List<String> _splitList(String text) {
+    return text
+        .split(',')
+        .map((v) => v.trim())
+        .where((v) => v.isNotEmpty)
+        .toList();
+  }
+
+  void _toast(String msg) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
+  }
+
+  String _fmtCredential(DateTime dt) {
+    final local = dt.toLocal();
+    final y = local.year.toString();
+    final m = local.month.toString().padLeft(2, '0');
+    final d = local.day.toString().padLeft(2, '0');
+    final h = local.hour.toString().padLeft(2, '0');
+    final min = local.minute.toString().padLeft(2, '0');
+    return '$y-$m-$d $h:$min';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final offline = context.watch<OfflineService>().isOffline;
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(12),
+        child: Column(
+          children: [
+            _LabeledField(label: 'Site ID', controller: _siteId, hint: 'site-123'),
+            const SizedBox(height: 8),
+            _LabeledField(label: 'Learner ID', controller: _learnerId, hint: 'learner-123'),
+            const SizedBox(height: 8),
+            _LabeledField(label: 'Title', controller: _title, hint: 'Certification title'),
+            const SizedBox(height: 8),
+            _LabeledField(label: 'Pillar codes (comma separated)', controller: _pillarCodes, hint: 'FUTURE_SKILLS'),
+            const SizedBox(height: 8),
+            _LabeledField(label: 'Skill IDs (comma separated)', controller: _skillIds, hint: 'skill-123'),
+            const SizedBox(height: 12),
+            Row(
+              children: [
+                Expanded(
+                  child: ElevatedButton.icon(
+                    onPressed: _submitting ? null : _submit,
+                    icon: _submitting
+                        ? const SizedBox(height: 16, width: 16, child: CircularProgressIndicator(strokeWidth: 2))
+                        : const Icon(Icons.verified),
+                    label: Text(_submitting ? 'Saving...' : 'Issue credential'),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                TextButton.icon(
+                  onPressed: _loading || offline ? null : _load,
+                  icon: _loading
+                      ? const SizedBox(height: 16, width: 16, child: CircularProgressIndicator(strokeWidth: 2))
+                      : const Icon(Icons.refresh),
+                  label: Text(_loading ? 'Loading...' : 'Load issued'),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            if (offline) ...[
+              const Row(
+                mainAxisAlignment: MainAxisAlignment.end,
+                children: [
+                  Icon(Icons.wifi_off, color: Colors.redAccent),
+                  SizedBox(width: 4),
+                  Text('Offline', style: TextStyle(color: Colors.redAccent)),
+                ],
+              ),
+              const SizedBox(height: 8),
+            ],
+            if (_items.isEmpty)
+              const Text('No credentials loaded yet.')
+            else
+              ListView.separated(
+                shrinkWrap: true,
+                physics: const NeverScrollableScrollPhysics(),
+                itemCount: _items.length,
+                separatorBuilder: (_, index) => const Divider(height: 1),
+                itemBuilder: (context, index) {
+                  final item = _items[index];
+                  final issued = item.issuedAt.toDate();
+                  return ListTile(
+                    title: Text(item.title),
+                    subtitle: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text('Site: ${item.siteId}', style: const TextStyle(fontSize: 12, color: Colors.black54)),
+                        Text('Learner: ${item.learnerId}', style: const TextStyle(fontSize: 12, color: Colors.black54)),
+                        Text(_fmtCredential(issued), style: const TextStyle(fontSize: 12, color: Colors.black54)),
+                      ],
+                    ),
+                    trailing: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      crossAxisAlignment: CrossAxisAlignment.end,
+                      children: [
+                        if (item.pillarCodes.isNotEmpty)
+                          Wrap(
+                            spacing: 4,
+                            runSpacing: 4,
+                            children: item.pillarCodes
+                                .map((p) => Chip(label: Text(p), padding: EdgeInsets.zero, materialTapTargetSize: MaterialTapTargetSize.shrinkWrap))
+                                .toList(),
+                          ),
+                        if (item.skillIds.isNotEmpty)
+                          Text('${item.skillIds.length} skill link(s)',
+                              style: const TextStyle(fontSize: 12, color: Colors.black54)),
+                      ],
+                    ),
+                  );
+                },
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _QueueStatus extends StatelessWidget {
+  const _QueueStatus({required this.queue, required this.offline});
 
   final OfflineQueue queue;
   final OfflineService offline;
 
   @override
   Widget build(BuildContext context) {
-    final isOffline = offline.isOffline;
-    final pendingCount = queue.pending.length;
+    final pending = queue.pending.length;
+    final syncing = queue.isFlushing;
+    final color = offline.isOffline
+        ? Colors.red.shade100
+        : (pending > 0 ? Colors.blue.shade100 : Colors.green.shade100);
+    final textColor = offline.isOffline
+        ? Colors.red.shade800
+        : (pending > 0 ? Colors.blue.shade800 : Colors.green.shade800);
     return Container(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.06),
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
-        boxShadow: [
-          BoxShadow(color: Colors.black.withValues(alpha: 0.35), blurRadius: 24, offset: const Offset(0, 12)),
-        ],
-        gradient: const LinearGradient(
-          colors: [Color(0xFF0B1224), Color(0xFF111827)],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Container(
-                padding: const EdgeInsets.all(8),
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  gradient: LinearGradient(
-                    colors: isOffline ? const [Color(0xFFef4444), Color(0xFFb91c1c)] : const [Color(0xFF22c55e), Color(0xFF16a34a)],
-                  ),
-                ),
-                child: Icon(isOffline ? Icons.wifi_off : Icons.cloud_done, color: Colors.white, size: 18),
-              ),
-              const SizedBox(width: 12),
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text('Offline sync', style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w700)),
-                  Text(
-                    isOffline
-                        ? 'You are offline. Actions queue safely.'
-                        : 'Online. Queued actions will flush.',
-                    style: TextStyle(color: Colors.white.withValues(alpha: 0.7)),
-                  ),
-                ],
-              ),
-              const Spacer(),
-              Chip(
-                label: Text('$pendingCount queued', style: const TextStyle(color: Colors.white)),
-                backgroundColor: Colors.white.withValues(alpha: 0.1),
-                shape: StadiumBorder(side: BorderSide(color: Colors.white.withValues(alpha: 0.15))),
-              ),
-            ],
-          ),
-          const SizedBox(height: 12),
-          Text(
-            'Log an action even when offline; we will sync the moment you reconnect. Use this to demo the queue while data wiring is in progress.',
-            style: TextStyle(color: Colors.white.withValues(alpha: 0.8)),
-          ),
-          const SizedBox(height: 12),
-          SizedBox(
-            width: double.infinity,
-            child: ElevatedButton(
-              style: ElevatedButton.styleFrom(
-                padding: const EdgeInsets.symmetric(vertical: 14),
-                backgroundColor: const Color(0xFF38BDF8),
-                foregroundColor: Colors.white,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                elevation: 8,
-              ),
-              onPressed: () async {
-                await OfflineActions.queueMissionAttempt(
-                  queue,
-                  missionId: 'demo-mission',
-                  siteId: 'demo-site',
-                  learnerId: FirebaseAuth.instance.currentUser?.uid ?? 'demo',
-                  status: 'started',
-                );
-                if (!isOffline) await queue.flush(online: true);
-                // ignore: use_build_context_synchronously
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(
-                    content: Text(isOffline ? 'Queued mission attempt for sync.' : 'Sent mission attempt (or queued if offline).'),
-                    behavior: SnackBarBehavior.floating,
-                    backgroundColor: const Color(0xFF0EA5E9),
-                  ),
-                );
-              },
-              child: Text(isOffline ? 'Queue mission attempt' : 'Send mission attempt'),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _MissionAttemptForm extends StatefulWidget {
-  const _MissionAttemptForm({required this.queue, required this.siteId, required this.appState});
-
-  final OfflineQueue queue;
-  final String siteId;
-  final AppState appState;
-
-  @override
-  State<_MissionAttemptForm> createState() => _MissionAttemptFormState();
-}
-
-class _MissionAttemptFormState extends State<_MissionAttemptForm> {
-  final TextEditingController _missionId = TextEditingController();
-  final TextEditingController _reflection = TextEditingController();
-  final TextEditingController _artifactUrl = TextEditingController();
-  final TextEditingController _sessionOccurrenceId = TextEditingController();
-  final TextEditingController _pillarCodes = TextEditingController(text: 'FUTURE_SKILLS,LEADERSHIP_AGENCY,IMPACT_INNOVATION');
-
-  @override
-  void dispose() {
-    _missionId.dispose();
-    _reflection.dispose();
-    _artifactUrl.dispose();
-    _sessionOccurrenceId.dispose();
-    _pillarCodes.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final isOffline = context.watch<OfflineService>().isOffline;
-    final learnerId = widget.appState.user?.uid ?? FirebaseAuth.instance.currentUser?.uid;
-    final role = widget.appState.role ?? 'learner';
-    return _GlassCard(
-      title: 'Submit mission attempt',
-      subtitle: 'Queues with site + learner + pillars; syncs when online.',
-      child: Column(
-        children: [
-          _TextField(controller: _missionId, label: 'Mission ID', hint: 'mission-123'),
-          const SizedBox(height: 8),
-          _TextField(controller: _sessionOccurrenceId, label: 'Session occurrence (optional)', hint: 'session-occ-123'),
-          const SizedBox(height: 8),
-          _TextField(controller: _pillarCodes, label: 'Pillar codes (comma separated)', hint: 'FUTURE_SKILLS'),
-          const SizedBox(height: 8),
-          _TextField(controller: _artifactUrl, label: 'Artifact URL (optional)', hint: 'https://...'),
-          const SizedBox(height: 8),
-          _TextField(controller: _reflection, label: 'Reflection', hint: 'What did you learn?'),
-          const SizedBox(height: 12),
-          SizedBox(
-            width: double.infinity,
-            child: ElevatedButton.icon(
-              icon: Icon(isOffline ? Icons.cloud_off : Icons.cloud_upload, color: Colors.white),
-              label: Text(isOffline ? 'Queue mission attempt' : 'Submit mission attempt'),
-              onPressed: () async {
-                final missionId = _missionId.text.trim();
-                if (missionId.isEmpty) {
-                  _toast(context, 'Mission ID is required');
-                  return;
-                }
-                if (learnerId == null) {
-                  _toast(context, 'Sign in to submit mission attempts');
-                  return;
-                }
-                await OfflineActions.queueMissionAttempt(
-                  widget.queue,
-                  missionId: missionId,
-                  siteId: widget.siteId,
-                  learnerId: learnerId,
-                  reflection: _reflection.text.trim().isEmpty ? null : _reflection.text.trim(),
-                  pillarCodes: _splitCodes(_pillarCodes.text),
-                  artifactUrls: _splitCodes(_artifactUrl.text),
-                  sessionOccurrenceId: _sessionOccurrenceId.text.trim().isEmpty ? null : _sessionOccurrenceId.text.trim(),
-                  actorRole: role,
-                );
-                if (!context.mounted) return;
-                if (!isOffline) await widget.queue.flush(online: true);
-                if (!context.mounted) return;
-                _toast(context, isOffline ? 'Queued mission attempt for sync' : 'Mission attempt submitted');
-              },
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _PortfolioItemForm extends StatefulWidget {
-  const _PortfolioItemForm({required this.queue, required this.siteId, required this.appState});
-
-  final OfflineQueue queue;
-  final String siteId;
-  final AppState appState;
-
-  @override
-  State<_PortfolioItemForm> createState() => _PortfolioItemFormState();
-}
-
-class _PortfolioItemFormState extends State<_PortfolioItemForm> {
-  final TextEditingController _title = TextEditingController();
-  final TextEditingController _description = TextEditingController();
-  final TextEditingController _missionId = TextEditingController();
-  final TextEditingController _pillarCodes = TextEditingController(text: 'FUTURE_SKILLS');
-  final TextEditingController _artifactUrl = TextEditingController();
-
-  @override
-  void dispose() {
-    _title.dispose();
-    _description.dispose();
-    _missionId.dispose();
-    _pillarCodes.dispose();
-    _artifactUrl.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final isOffline = context.watch<OfflineService>().isOffline;
-    final learnerId = widget.appState.user?.uid ?? FirebaseAuth.instance.currentUser?.uid;
-    final role = widget.appState.role ?? 'learner';
-    return _GlassCard(
-      title: 'Add portfolio evidence',
-      subtitle: 'Logs an item tied to pillars and site scope.',
-      child: Column(
-        children: [
-          _TextField(controller: _title, label: 'Title', hint: 'Robotics demo'),
-          const SizedBox(height: 8),
-          _TextField(controller: _description, label: 'Description', hint: 'What was built or learned?'),
-          const SizedBox(height: 8),
-          _TextField(controller: _pillarCodes, label: 'Pillar codes (comma separated)', hint: 'FUTURE_SKILLS'),
-          const SizedBox(height: 8),
-          _TextField(controller: _missionId, label: 'Mission ID (optional)', hint: 'mission-123'),
-          const SizedBox(height: 8),
-          _TextField(controller: _artifactUrl, label: 'Artifact URL (optional)', hint: 'https://...'),
-          const SizedBox(height: 12),
-          SizedBox(
-            width: double.infinity,
-            child: ElevatedButton.icon(
-              icon: Icon(isOffline ? Icons.cloud_off : Icons.cloud_upload, color: Colors.white),
-              label: Text(isOffline ? 'Queue portfolio item' : 'Save portfolio item'),
-              onPressed: () async {
-                final title = _title.text.trim();
-                if (title.isEmpty) {
-                  _toast(context, 'Title is required');
-                  return;
-                }
-                if (learnerId == null) {
-                  _toast(context, 'Sign in to save portfolio items');
-                  return;
-                }
-                await OfflineActions.queuePortfolioItem(
-                  widget.queue,
-                  siteId: widget.siteId,
-                  learnerId: learnerId,
-                  title: title,
-                  description: _description.text.trim().isEmpty ? null : _description.text.trim(),
-                  pillarCodes: _splitCodes(_pillarCodes.text),
-                  missionId: _missionId.text.trim().isEmpty ? null : _missionId.text.trim(),
-                  url: _artifactUrl.text.trim().isEmpty ? null : _artifactUrl.text.trim(),
-                  actorRole: role,
-                );
-                if (!context.mounted) return;
-                if (!isOffline) await widget.queue.flush(online: true);
-                if (!context.mounted) return;
-                _toast(context, isOffline ? 'Queued portfolio item for sync' : 'Portfolio item saved');
-              },
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _AttendanceForm extends StatefulWidget {
-  const _AttendanceForm({required this.queue, required this.siteId, required this.appState});
-
-  final OfflineQueue queue;
-  final String siteId;
-  final AppState appState;
-
-  @override
-  State<_AttendanceForm> createState() => _AttendanceFormState();
-}
-
-class _AttendanceFormState extends State<_AttendanceForm> {
-  final TextEditingController _sessionOccurrenceId = TextEditingController();
-  final TextEditingController _learnerId = TextEditingController();
-  final TextEditingController _note = TextEditingController();
-  String _status = 'present';
-  List<SessionOccurrenceModel> _occurrences = <SessionOccurrenceModel>[];
-  List<AttendanceRecordModel> _recent = <AttendanceRecordModel>[];
-  List<EnrollmentModel> _enrollments = <EnrollmentModel>[];
-  bool _loadingRefs = false;
-  String? _selectedOccurrenceId;
-
-  @override
-  void dispose() {
-    _sessionOccurrenceId.dispose();
-    _learnerId.dispose();
-    _note.dispose();
-    super.dispose();
-  }
-
-  @override
-  void initState() {
-    super.initState();
-    _loadRefs();
-  }
-
-  Future<void> _loadRefs() async {
-    setState(() => _loadingRefs = true);
-    final occRepo = SessionOccurrenceRepository();
-    final attRepo = AttendanceRepository();
-    final enrRepo = EnrollmentRepository();
-    final occs = await occRepo.listBySite(widget.siteId);
-    final recent = await attRepo.listBySite(widget.siteId);
-    final enrollments = await enrRepo.listBySite(widget.siteId);
-    if (!mounted) return;
-    setState(() {
-      _occurrences = occs;
-      _recent = recent;
-      _enrollments = enrollments;
-      _selectedOccurrenceId ??= _occurrences.isNotEmpty ? _occurrences.first.id : null;
-      if (_sessionOccurrenceId.text.isEmpty && _selectedOccurrenceId != null) {
-        _sessionOccurrenceId.text = _selectedOccurrenceId!;
-      }
-      _loadingRefs = false;
-    });
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final isOffline = context.watch<OfflineService>().isOffline;
-    final recordedBy = widget.appState.user?.uid ?? FirebaseAuth.instance.currentUser?.uid;
-    final role = widget.appState.role ?? 'educator';
-    return _GlassCard(
-      title: 'Mark attendance (site scoped)',
-      subtitle: 'Deterministic doc IDs per occurrence + learner; queues offline.',
-      child: Column(
-        children: [
-          _TextField(controller: _sessionOccurrenceId, label: 'Session occurrence ID', hint: 'occ-2024-10-01-A'),
-          const SizedBox(height: 8),
-          DropdownButtonFormField<String>(
-            initialValue: _selectedOccurrenceId ?? (_occurrences.isNotEmpty ? _occurrences.first.id : null),
-            decoration: _inputDecoration('Pick session occurrence'),
-            dropdownColor: const Color(0xFF0F172A),
-            items: _occurrences
-                .map((o) => DropdownMenuItem(
-                      value: o.id,
-                      child: Text('${o.id} • ${o.date}', style: const TextStyle(color: Colors.white)),
-                    ))
-                .toList(),
-            onChanged: (value) {
-              if (value != null) {
-                setState(() {
-                  _selectedOccurrenceId = value;
-                  _sessionOccurrenceId.text = value;
-                });
-              }
-            },
-          ),
-          const SizedBox(height: 8),
-          _TextField(controller: _learnerId, label: 'Learner ID', hint: 'uid of learner'),
-          const SizedBox(height: 8),
-          _AttendanceRoster(
-            occurrences: _occurrences,
-            enrollments: _enrollments,
-            selectedOccurrenceId: _selectedOccurrenceId,
-            onSelectLearner: (id) {
-              setState(() => _learnerId.text = id);
-            },
-          ),
-          const SizedBox(height: 8),
-          DropdownButtonFormField<String>(
-            initialValue: _status,
-            dropdownColor: const Color(0xFF0F172A),
-            decoration: _inputDecoration('Status'),
-            items: const [
-              DropdownMenuItem(value: 'present', child: Text('Present')),
-              DropdownMenuItem(value: 'absent', child: Text('Absent')),
-              DropdownMenuItem(value: 'late', child: Text('Late')),
-            ],
-            onChanged: (value) => setState(() => _status = value ?? 'present'),
-          ),
-          const SizedBox(height: 8),
-          _TextField(controller: _note, label: 'Note (optional)', hint: 'Observation'),
-          const SizedBox(height: 12),
-          if (_loadingRefs)
-            const Padding(
-              padding: EdgeInsets.only(bottom: 8),
-              child: Row(
-                children: [
-                  SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2)),
-                  SizedBox(width: 8),
-                  Text('Loading references...', style: TextStyle(color: Colors.white70)),
-                ],
-              ),
-            ),
-          SizedBox(
-            width: double.infinity,
-            child: ElevatedButton.icon(
-              icon: Icon(isOffline ? Icons.cloud_off : Icons.cloud_upload, color: Colors.white),
-              label: Text(isOffline ? 'Queue attendance' : 'Save attendance'),
-              onPressed: () async {
-                final sessionOccurrenceId = _sessionOccurrenceId.text.trim();
-                final learnerId = _learnerId.text.trim();
-                if (sessionOccurrenceId.isEmpty || learnerId.isEmpty) {
-                  _toast(context, 'Session occurrence and learner are required');
-                  return;
-                }
-                if (recordedBy == null) {
-                  _toast(context, 'Sign in to record attendance');
-                  return;
-                }
-                await OfflineActions.queueAttendance(
-                  widget.queue,
-                  sessionOccurrenceId: sessionOccurrenceId,
-                  siteId: widget.siteId,
-                  learnerId: learnerId,
-                  recordedBy: recordedBy,
-                  status: _status,
-                  note: _note.text.trim().isNotEmpty ? _note.text.trim() : null,
-                  actorRole: role,
-                );
-                if (!context.mounted) return;
-                if (!isOffline) await widget.queue.flush(online: true);
-                if (!context.mounted) return;
-                _toast(context, isOffline ? 'Queued attendance for sync' : 'Attendance saved');
-                _loadRefs();
-              },
-            ),
-          ),
-          _AttendanceRecentList(
-            records: _recent.take(20).toList(),
-            filterOccurrenceId: _selectedOccurrenceId,
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _AttendanceRecentList extends StatelessWidget {
-  const _AttendanceRecentList({required this.records, this.filterOccurrenceId});
-
-  final List<AttendanceRecordModel> records;
-  final String? filterOccurrenceId;
-
-  @override
-  Widget build(BuildContext context) {
-    final filtered = filterOccurrenceId == null
-        ? records
-        : records.where((r) => r.sessionOccurrenceId == filterOccurrenceId).toList();
-    if (filtered.isEmpty) {
-      return const SizedBox.shrink();
-    }
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        const SizedBox(height: 10),
-        const Text('Recent attendance', style: TextStyle(color: Colors.white70, fontWeight: FontWeight.w700)),
-        const SizedBox(height: 6),
-        Container(
-          decoration: BoxDecoration(
-            color: Colors.white.withValues(alpha: 0.04),
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: Colors.white12),
-          ),
-          child: ListView.separated(
-            shrinkWrap: true,
-            physics: const NeverScrollableScrollPhysics(),
-            itemCount: filtered.length,
-            separatorBuilder: (_, unused) => const Divider(color: Colors.white10, height: 1),
-            itemBuilder: (context, index) {
-              final r = filtered[index];
-              return ListTile(
-                dense: true,
-                title: Text('${r.sessionOccurrenceId} • ${r.learnerId}', style: const TextStyle(color: Colors.white)),
-                subtitle: Text('Status: ${r.status}${r.note != null ? ' • ${r.note}' : ''}', style: const TextStyle(color: Colors.white70)),
-              );
-            },
-          ),
-        ),
-      ],
-    );
-  }
-}
-
-class _AttendanceRoster extends StatelessWidget {
-  const _AttendanceRoster({
-    required this.occurrences,
-    required this.enrollments,
-    required this.selectedOccurrenceId,
-    required this.onSelectLearner,
-  });
-
-  final List<SessionOccurrenceModel> occurrences;
-  final List<EnrollmentModel> enrollments;
-  final String? selectedOccurrenceId;
-  final ValueChanged<String> onSelectLearner;
-
-  @override
-  Widget build(BuildContext context) {
-    if (selectedOccurrenceId == null) return const SizedBox.shrink();
-    final occ = occurrences.firstWhere(
-      (o) => o.id == selectedOccurrenceId,
-      orElse: () => SessionOccurrenceModel(
-        id: '',
-        sessionId: '',
-        siteId: '',
-        date: '',
-        startAt: Timestamp.now(),
-        endAt: Timestamp.now(),
-      ),
-    );
-    if (occ.id.isEmpty) return const SizedBox.shrink();
-    final roster = enrollments.where((e) => e.sessionId == occ.sessionId).toList();
-    if (roster.isEmpty) return const SizedBox.shrink();
-    return Container(
-      width: double.infinity,
-      decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.04),
+        color: color,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.white12),
+        border: Border.all(color: textColor.withValues(alpha: 0.4)),
       ),
-      padding: const EdgeInsets.all(10),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+      child: Row(
         children: [
-          Text('Roster for ${occ.sessionId} (${occ.date})', style: const TextStyle(color: Colors.white70, fontWeight: FontWeight.w700)),
-          const SizedBox(height: 6),
-          ListView.separated(
-            shrinkWrap: true,
-            physics: const NeverScrollableScrollPhysics(),
-            itemCount: roster.length,
-            separatorBuilder: (_, unused) => const Divider(color: Colors.white10, height: 1),
-            itemBuilder: (context, index) {
-              final enrollment = roster[index];
-              return ListTile(
-                dense: true,
-                title: Text(enrollment.learnerId, style: const TextStyle(color: Colors.white)),
-                trailing: TextButton(
-                  onPressed: () => onSelectLearner(enrollment.learnerId),
-                  child: const Text('Select', style: TextStyle(color: Colors.white70)),
-                ),
-              );
-            },
+          Icon(offline.isOffline
+              ? Icons.wifi_off
+              : syncing
+                  ? Icons.sync
+                  : (pending > 0 ? Icons.cloud_upload : Icons.check_circle),
+              color: textColor),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              offline.isOffline
+                  ? (pending > 0
+                      ? 'Offline • $pending update(s) queued'
+                      : 'Offline • queue empty')
+                  : syncing
+                      ? 'Syncing $pending update(s)...'
+                      : (pending > 0 ? '$pending update(s) queued. Sync now?' : 'All synced'),
+              style: TextStyle(color: textColor, fontWeight: FontWeight.w600),
+            ),
           ),
+          if (!offline.isOffline)
+            TextButton.icon(
+              onPressed: syncing
+                  ? null
+                  : () {
+                      queue.flush(online: true);
+                    },
+              icon: syncing
+                  ? const SizedBox(
+                      height: 16,
+                      width: 16,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : const Icon(Icons.sync),
+              label: Text(syncing ? 'Syncing' : 'Sync now'),
+            ),
         ],
       ),
     );
   }
 }
 
-class _AttendanceDemoCard extends StatelessWidget {
-  const _AttendanceDemoCard({required this.queue, required this.siteId});
+class _QueueInspector extends StatelessWidget {
+  const _QueueInspector({required this.queue});
 
   final OfflineQueue queue;
-  final String siteId;
 
   @override
   Widget build(BuildContext context) {
-    final isOffline = context.watch<OfflineService>().isOffline;
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.06),
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
-        boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.35), blurRadius: 24, offset: const Offset(0, 12))],
-        gradient: const LinearGradient(
-          colors: [Color(0xFF0F172A), Color(0xFF111827)],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Container(
-                padding: const EdgeInsets.all(8),
-                decoration: const BoxDecoration(
-                  shape: BoxShape.circle,
-                  gradient: LinearGradient(colors: [Color(0xFF38BDF8), Color(0xFF6366F1)]),
+    final pending = queue.pending;
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(12),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Text('Queued actions', style: Theme.of(context).textTheme.titleMedium),
+                const Spacer(),
+                TextButton.icon(
+                  onPressed: pending.isEmpty
+                      ? null
+                      : () async {
+                          await queue.clear();
+                          // ignore: use_build_context_synchronously
+                          ScaffoldMessenger.of(context)
+                              .showSnackBar(const SnackBar(content: Text('Cleared queued actions')));
+                        },
+                  icon: const Icon(Icons.delete_sweep),
+                  label: const Text('Clear'),
                 ),
-                child: const Icon(Icons.event_available, color: Colors.white, size: 18),
-              ),
-              const SizedBox(width: 12),
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: const [
-                  Text('Attendance (demo)', style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w700)),
-                  Text('Queue a mark and sync on reconnect.', style: TextStyle(color: Colors.white70)),
-                ],
-              ),
-            ],
-          ),
-          const SizedBox(height: 12),
-          Text('Site: $siteId', style: TextStyle(color: Colors.white.withValues(alpha: 0.75))),
-          const SizedBox(height: 10),
-          SizedBox(
-            width: double.infinity,
-            child: ElevatedButton(
-              style: ElevatedButton.styleFrom(
-                padding: const EdgeInsets.symmetric(vertical: 14),
-                backgroundColor: const Color(0xFF22c55e),
-                foregroundColor: Colors.white,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                elevation: 8,
-              ),
-              onPressed: () async {
-                final user = FirebaseAuth.instance.currentUser;
-                await OfflineActions.queueAttendance(
-                  queue,
-                  sessionOccurrenceId: 'demo-occurrence',
-                  siteId: siteId,
-                  learnerId: user?.uid ?? 'demo-learner',
-                  recordedBy: user?.uid ?? 'demo-educator',
-                  status: 'present',
-                  actorRole: 'educator',
-                  note: 'demo button',
-                );
-                if (!isOffline) await queue.flush(online: true);
-                // ignore: use_build_context_synchronously
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(
-                    content: Text(isOffline ? 'Queued attendance mark for sync.' : 'Attendance marked (or queued).'),
-                    behavior: SnackBarBehavior.floating,
-                    backgroundColor: const Color(0xFF16a34a),
-                  ),
-                );
-              },
-              child: Text(isOffline ? 'Queue attendance (demo)' : 'Mark attendance (demo)'),
+              ],
             ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _AdminProvisioningCard extends StatefulWidget {
-  const _AdminProvisioningCard({required this.siteId, required this.appState});
-
-  final String siteId;
-  final AppState appState;
-
-  @override
-  State<_AdminProvisioningCard> createState() => _AdminProvisioningCardState();
-}
-
-class _AdminProvisioningCardState extends State<_AdminProvisioningCard> {
-  final TextEditingController _learnerId = TextEditingController();
-  final TextEditingController _learnerEmail = TextEditingController();
-  final TextEditingController _learnerName = TextEditingController();
-  final TextEditingController _learnerPreferred = TextEditingController();
-  final TextEditingController _learnerGrade = TextEditingController();
-  final TextEditingController _learnerDob = TextEditingController();
-
-  final TextEditingController _parentId = TextEditingController();
-  final TextEditingController _parentEmail = TextEditingController();
-  final TextEditingController _parentName = TextEditingController();
-  final TextEditingController _parentPhone = TextEditingController();
-  final TextEditingController _parentLang = TextEditingController();
-
-  final TextEditingController _linkParentId = TextEditingController();
-  final TextEditingController _linkLearnerId = TextEditingController();
-  String _relationship = 'guardian';
-  bool _isPrimary = true;
-
-  bool _busy = false;
-
-  @override
-  void dispose() {
-    _learnerId.dispose();
-    _learnerEmail.dispose();
-    _learnerName.dispose();
-    _learnerPreferred.dispose();
-    _learnerGrade.dispose();
-    _learnerDob.dispose();
-    _parentId.dispose();
-    _parentEmail.dispose();
-    _parentName.dispose();
-    _parentPhone.dispose();
-    _parentLang.dispose();
-    _linkParentId.dispose();
-    _linkLearnerId.dispose();
-    super.dispose();
-  }
-
-  Future<void> _createLearner() async {
-    if (_busy) return;
-    final learnerId = _learnerId.text.trim();
-    final email = _learnerEmail.text.trim();
-    if (learnerId.isEmpty || email.isEmpty) {
-      _toast(context, 'Learner ID and email are required');
-      return;
-    }
-    final actorId = widget.appState.user?.uid ?? FirebaseAuth.instance.currentUser?.uid;
-    if (actorId == null) {
-      _toast(context, 'Sign in required');
-      return;
-    }
-    setState(() => _busy = true);
-    try {
-      final userRepo = UserRepository();
-      final learnerRepo = LearnerProfileRepository();
-      final auditRepo = AuditLogRepository();
-      final now = Timestamp.now();
-      await userRepo.upsert(
-        UserModel(
-          id: learnerId,
-          email: email,
-          role: 'learner',
-          displayName: _learnerPreferred.text.trim().isNotEmpty ? _learnerPreferred.text.trim() : _learnerName.text.trim(),
-          siteIds: <String>[widget.siteId],
-          activeSiteId: widget.siteId,
-          provisionedBy: actorId,
-          provisionedAt: now,
-          createdAt: now,
-          updatedAt: now,
-        ),
-      );
-      await learnerRepo.upsert(
-        LearnerProfileModel(
-          id: 'lp-$learnerId',
-          learnerId: learnerId,
-          siteId: widget.siteId,
-          legalName: _learnerName.text.trim().isEmpty ? null : _learnerName.text.trim(),
-          preferredName: _learnerPreferred.text.trim().isEmpty ? null : _learnerPreferred.text.trim(),
-          dateOfBirth: _learnerDob.text.trim().isEmpty ? null : _learnerDob.text.trim(),
-          gradeLevel: _learnerGrade.text.trim().isEmpty ? null : _learnerGrade.text.trim(),
-          createdAt: now,
-          updatedAt: now,
-        ),
-      );
-      await auditRepo.log(
-        AuditLogModel(
-          id: 'audit-learner-$learnerId-${now.millisecondsSinceEpoch}',
-          actorId: actorId,
-          actorRole: widget.appState.role ?? 'site',
-          action: 'learner.provision',
-          entityType: 'learnerProfile',
-          entityId: 'lp-$learnerId',
-          siteId: widget.siteId,
-          details: <String, dynamic>{'learnerId': learnerId, 'email': email},
-          createdAt: Timestamp.now(),
-        ),
-      );
-      if (!mounted) return;
-      _toast(context, 'Learner provisioned');
-    } finally {
-      if (mounted) setState(() => _busy = false);
-    }
-  }
-
-  Future<void> _createParent() async {
-    if (_busy) return;
-    final parentId = _parentId.text.trim();
-    final email = _parentEmail.text.trim();
-    if (parentId.isEmpty || email.isEmpty) {
-      _toast(context, 'Parent ID and email are required');
-      return;
-    }
-    final actorId = widget.appState.user?.uid ?? FirebaseAuth.instance.currentUser?.uid;
-    if (actorId == null) {
-      _toast(context, 'Sign in required');
-      return;
-    }
-    setState(() => _busy = true);
-    try {
-      final userRepo = UserRepository();
-      final parentRepo = ParentProfileRepository();
-      final auditRepo = AuditLogRepository();
-      final now = Timestamp.now();
-      await userRepo.upsert(
-        UserModel(
-          id: parentId,
-          email: email,
-          role: 'parent',
-          displayName: _parentName.text.trim().isEmpty ? null : _parentName.text.trim(),
-          siteIds: <String>[widget.siteId],
-          activeSiteId: widget.siteId,
-          provisionedBy: actorId,
-          provisionedAt: now,
-          createdAt: now,
-          updatedAt: now,
-        ),
-      );
-      await parentRepo.upsert(
-        ParentProfileModel(
-          id: 'pp-$parentId',
-          parentId: parentId,
-          siteId: widget.siteId,
-          legalName: _parentName.text.trim().isEmpty ? null : _parentName.text.trim(),
-          preferredName: _parentName.text.trim().isEmpty ? null : _parentName.text.trim(),
-          phone: _parentPhone.text.trim().isEmpty ? null : _parentPhone.text.trim(),
-          preferredLanguage: _parentLang.text.trim().isEmpty ? null : _parentLang.text.trim(),
-          communicationPreferences: const <String>['email'],
-          createdAt: now,
-          updatedAt: now,
-        ),
-      );
-      await auditRepo.log(
-        AuditLogModel(
-          id: 'audit-parent-$parentId-${now.millisecondsSinceEpoch}',
-          actorId: actorId,
-          actorRole: widget.appState.role ?? 'site',
-          action: 'parent.provision',
-          entityType: 'parentProfile',
-          entityId: 'pp-$parentId',
-          siteId: widget.siteId,
-          details: <String, dynamic>{'parentId': parentId, 'email': email},
-          createdAt: Timestamp.now(),
-        ),
-      );
-      if (!mounted) return;
-      _toast(context, 'Parent provisioned');
-    } finally {
-      if (mounted) setState(() => _busy = false);
-    }
-  }
-
-  Future<void> _linkGuardian() async {
-    if (_busy) return;
-    final parentId = _linkParentId.text.trim();
-    final learnerId = _linkLearnerId.text.trim();
-    if (parentId.isEmpty || learnerId.isEmpty) {
-      _toast(context, 'Parent ID and learner ID are required');
-      return;
-    }
-    final actorId = widget.appState.user?.uid ?? FirebaseAuth.instance.currentUser?.uid;
-    if (actorId == null) {
-      _toast(context, 'Sign in required');
-      return;
-    }
-    setState(() => _busy = true);
-    try {
-      final repo = GuardianLinkRepository();
-      final auditRepo = AuditLogRepository();
-      final now = Timestamp.now();
-      final linkId = 'gl-$parentId-$learnerId';
-      await repo.upsert(
-        GuardianLinkModel(
-          id: linkId,
-          parentId: parentId,
-          learnerId: learnerId,
-          siteId: widget.siteId,
-          relationship: _relationship,
-          isPrimary: _isPrimary,
-          createdAt: now,
-          updatedAt: now,
-        ),
-      );
-      await auditRepo.log(
-        AuditLogModel(
-          id: 'audit-guardian-$linkId-${now.millisecondsSinceEpoch}',
-          actorId: actorId,
-          actorRole: widget.appState.role ?? 'site',
-          action: 'guardian.link',
-          entityType: 'guardianLink',
-          entityId: linkId,
-          siteId: widget.siteId,
-          details: <String, dynamic>{'parentId': parentId, 'learnerId': learnerId, 'relationship': _relationship},
-          createdAt: Timestamp.now(),
-        ),
-      );
-      if (!mounted) return;
-      _toast(context, 'Guardian link saved');
-    } finally {
-      if (mounted) setState(() => _busy = false);
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return _GlassCard(
-      title: 'Admin provisioning',
-      subtitle: 'HQ/Site can create learners, parents, and guardian links (site scoped).',
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Text('Create learner', style: TextStyle(color: Colors.white70, fontWeight: FontWeight.w700)),
-          const SizedBox(height: 8),
-          _TextField(controller: _learnerId, label: 'Learner ID', hint: 'uid'),
-          const SizedBox(height: 8),
-          _TextField(controller: _learnerEmail, label: 'Learner email', hint: 'learner@example.com'),
-          const SizedBox(height: 8),
-          _TextField(controller: _learnerName, label: 'Legal name', hint: 'Full name'),
-          const SizedBox(height: 8),
-          _TextField(controller: _learnerPreferred, label: 'Preferred name (optional)', hint: 'Nickname'),
-          const SizedBox(height: 8),
-          _TextField(controller: _learnerGrade, label: 'Grade level (optional)', hint: 'Grade'),
-          const SizedBox(height: 8),
-          _TextField(controller: _learnerDob, label: 'Date of birth (YYYY-MM-DD)', hint: '2009-06-01'),
-          const SizedBox(height: 10),
-          SizedBox(
-            width: double.infinity,
-            child: ElevatedButton.icon(
-              onPressed: _busy ? null : _createLearner,
-              icon: const Icon(Icons.person_add, color: Colors.white),
-              label: Text(_busy ? 'Working...' : 'Create learner'),
-            ),
-          ),
-          const SizedBox(height: 16),
-          const Divider(color: Colors.white12),
-          const SizedBox(height: 12),
-          const Text('Create parent', style: TextStyle(color: Colors.white70, fontWeight: FontWeight.w700)),
-          const SizedBox(height: 8),
-          _TextField(controller: _parentId, label: 'Parent ID', hint: 'uid'),
-          const SizedBox(height: 8),
-          _TextField(controller: _parentEmail, label: 'Parent email', hint: 'parent@example.com'),
-          const SizedBox(height: 8),
-          _TextField(controller: _parentName, label: 'Name', hint: 'Legal name'),
-          const SizedBox(height: 8),
-          _TextField(controller: _parentPhone, label: 'Phone (optional)', hint: '+1...'),
-          const SizedBox(height: 8),
-          _TextField(controller: _parentLang, label: 'Preferred language (optional)', hint: 'en'),
-          const SizedBox(height: 10),
-          SizedBox(
-            width: double.infinity,
-            child: ElevatedButton.icon(
-              onPressed: _busy ? null : _createParent,
-              icon: const Icon(Icons.family_restroom, color: Colors.white),
-              label: Text(_busy ? 'Working...' : 'Create parent'),
-            ),
-          ),
-          const SizedBox(height: 16),
-          const Divider(color: Colors.white12),
-          const SizedBox(height: 12),
-          const Text('Link parent to learner', style: TextStyle(color: Colors.white70, fontWeight: FontWeight.w700)),
-          const SizedBox(height: 8),
-          _TextField(controller: _linkParentId, label: 'Parent ID', hint: 'parent uid'),
-          const SizedBox(height: 8),
-          _TextField(controller: _linkLearnerId, label: 'Learner ID', hint: 'learner uid'),
-          const SizedBox(height: 8),
-          DropdownButtonFormField<String>(
-            initialValue: _relationship,
-            dropdownColor: const Color(0xFF0F172A),
-            decoration: _inputDecoration('Relationship'),
-            items: const [
-              DropdownMenuItem(value: 'mother', child: Text('Mother')),
-              DropdownMenuItem(value: 'father', child: Text('Father')),
-              DropdownMenuItem(value: 'guardian', child: Text('Guardian')),
-              DropdownMenuItem(value: 'other', child: Text('Other')),
-            ],
-            onChanged: (value) => setState(() => _relationship = value ?? 'guardian'),
-          ),
-          const SizedBox(height: 8),
-          SwitchListTile(
-            value: _isPrimary,
-            onChanged: (value) => setState(() => _isPrimary = value),
-            title: const Text('Primary guardian', style: TextStyle(color: Colors.white70)),
-            contentPadding: EdgeInsets.zero,
-            activeTrackColor: const Color(0xFF38BDF8),
-          ),
-          const SizedBox(height: 8),
-          SizedBox(
-            width: double.infinity,
-            child: ElevatedButton.icon(
-              onPressed: _busy ? null : _linkGuardian,
-              icon: const Icon(Icons.link, color: Colors.white),
-              label: Text(_busy ? 'Working...' : 'Link guardian'),
-            ),
-          ),
-          const SizedBox(height: 16),
-          const Divider(color: Colors.white12),
-          const SizedBox(height: 12),
-          _ProvisionedList(
-            title: 'Learners at this site',
-            stream: FirebaseFirestore.instance
-                .collection('learnerProfiles')
-                .where('siteId', isEqualTo: widget.siteId)
-                .orderBy('createdAt', descending: true)
-                .snapshots(),
-            itemBuilder: (data) {
-              final name = (data['preferredName'] ?? data['legalName'] ?? '') as String?;
-              return '${data['learnerId'] ?? ''}${name != null && name.isNotEmpty ? ' • $name' : ''}';
-            },
-          ),
-          const SizedBox(height: 12),
-          _ProvisionedList(
-            title: 'Parents at this site',
-            stream: FirebaseFirestore.instance
-                .collection('parentProfiles')
-                .where('siteId', isEqualTo: widget.siteId)
-                .orderBy('createdAt', descending: true)
-                .snapshots(),
-            itemBuilder: (data) {
-              final name = (data['preferredName'] ?? data['legalName'] ?? '') as String?;
-              return '${data['parentId'] ?? ''}${name != null && name.isNotEmpty ? ' • $name' : ''}';
-            },
-          ),
-          const SizedBox(height: 12),
-          _ProvisionedList(
-            title: 'Guardian links',
-            stream: FirebaseFirestore.instance
-                .collection('guardianLinks')
-                .where('siteId', isEqualTo: widget.siteId)
-                .orderBy('createdAt', descending: true)
-                .snapshots(),
-            itemBuilder: (data) {
-              final rel = data['relationship'] as String?;
-              final primary = data['isPrimary'] == true ? ' (primary)' : '';
-              return '${data['parentId'] ?? ''} → ${data['learnerId'] ?? ''}${rel != null ? ' • $rel' : ''}$primary';
-            },
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _ProvisionedList extends StatelessWidget {
-  const _ProvisionedList({required this.title, required this.stream, required this.itemBuilder});
-
-  final String title;
-  final Stream<QuerySnapshot<Map<String, dynamic>>> stream;
-  final String Function(Map<String, dynamic>) itemBuilder;
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(title, style: const TextStyle(color: Colors.white70, fontWeight: FontWeight.w700)),
-        const SizedBox(height: 8),
-        Container(
-          decoration: BoxDecoration(
-            color: Colors.white.withValues(alpha: 0.04),
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: Colors.white12),
-          ),
-          child: StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
-            stream: stream,
-            builder: (context, snapshot) {
-              if (snapshot.connectionState == ConnectionState.waiting) {
-                return const Padding(
-                  padding: EdgeInsets.all(12),
-                  child: Row(children: [SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2)), SizedBox(width: 8), Text('Loading...', style: TextStyle(color: Colors.white70))]),
-                );
-              }
-              if (snapshot.hasError) {
-                return Padding(
-                  padding: const EdgeInsets.all(12),
-                  child: Text('Error loading $title', style: const TextStyle(color: Colors.redAccent)),
-                );
-              }
-              final docs = snapshot.data?.docs ?? const [];
-              if (docs.isEmpty) {
-                return Padding(
-                  padding: const EdgeInsets.all(12),
-                  child: Text('No records yet', style: TextStyle(color: Colors.white.withValues(alpha: 0.7))),
-                );
-              }
-              return ListView.separated(
+            const SizedBox(height: 8),
+            if (pending.isEmpty)
+              const Text('Queue empty.')
+            else
+              ListView.separated(
                 shrinkWrap: true,
                 physics: const NeverScrollableScrollPhysics(),
+                itemCount: pending.length,
+                separatorBuilder: (_, i) => const Divider(height: 1),
                 itemBuilder: (context, index) {
-                  final data = docs[index].data();
+                  final p = pending[index];
                   return ListTile(
                     dense: true,
-                    title: Text(itemBuilder(data), style: const TextStyle(color: Colors.white)),
+                    title: Text(p.type),
+                    subtitle: Text(p.id),
+                    trailing: Text(_fmt(p.createdAt)),
                   );
                 },
-                separatorBuilder: (_, unused) => const Divider(color: Colors.white10, height: 1),
-                itemCount: docs.length,
-              );
-            },
-          ),
-        ),
-      ],
-    );
-  }
-}
-
-class _UserManagementCard extends StatefulWidget {
-  const _UserManagementCard({required this.siteId, required this.appState});
-
-  final String siteId;
-  final AppState appState;
-
-  @override
-  State<_UserManagementCard> createState() => _UserManagementCardState();
-}
-
-class _UserManagementCardState extends State<_UserManagementCard> {
-  final TextEditingController _search = TextEditingController();
-  final TextEditingController _newUserId = TextEditingController();
-  final TextEditingController _newEmail = TextEditingController();
-  final TextEditingController _newDisplayName = TextEditingController();
-  String _newRole = 'learner';
-  bool _loading = false;
-  List<UserModel> _users = <UserModel>[];
-  bool _showArchived = false;
-
-  @override
-  void initState() {
-    super.initState();
-    _load();
-  }
-
-  @override
-  void dispose() {
-    _search.dispose();
-    _newUserId.dispose();
-    _newEmail.dispose();
-    _newDisplayName.dispose();
-    super.dispose();
-  }
-
-  Future<void> _load() async {
-    setState(() => _loading = true);
-    try {
-      final snap = await FirebaseFirestore.instance
-          .collection('users')
-          .where('siteIds', arrayContains: widget.siteId)
-          .orderBy('createdAt', descending: true)
-          .limit(50)
-          .get();
-      final users = snap.docs.map(UserModel.fromDoc).toList();
-      if (mounted) setState(() => _users = users);
-    } finally {
-      if (mounted) setState(() => _loading = false);
-    }
-  }
-
-  Future<void> _createUser() async {
-    final userId = _newUserId.text.trim();
-    final email = _newEmail.text.trim();
-    if (userId.isEmpty || email.isEmpty) {
-      _toast(context, 'User ID and email are required');
-      return;
-    }
-    final actorId = widget.appState.user?.uid ?? FirebaseAuth.instance.currentUser?.uid;
-    if (actorId == null) return;
-    setState(() => _loading = true);
-    final now = Timestamp.now();
-    try {
-      await FirebaseFirestore.instance.collection('users').doc(userId).set({
-        'email': email,
-        'role': _newRole,
-        'displayName': _newDisplayName.text.trim().isEmpty ? null : _newDisplayName.text.trim(),
-        'siteIds': FieldValue.arrayUnion(<String>[widget.siteId]),
-        'activeSiteId': widget.siteId,
-        'provisionedBy': actorId,
-        'provisionedAt': now,
-        'createdAt': now,
-        'updatedAt': now,
-        'archived': false,
-      });
-      await AuditLogRepository().log(
-        AuditLogModel(
-          id: 'audit-user-create-$userId-${now.millisecondsSinceEpoch}',
-          actorId: actorId,
-          actorRole: widget.appState.role ?? 'site',
-          action: 'user.create',
-          entityType: 'user',
-          entityId: userId,
-          siteId: widget.siteId,
-          details: {'role': _newRole, 'email': email},
-          createdAt: Timestamp.now(),
-        ),
-      );
-      if (!mounted) return;
-      _toast(context, 'User created and added to site');
-      _newUserId.clear();
-      _newEmail.clear();
-      _newDisplayName.clear();
-      _load();
-    } finally {
-      if (mounted) setState(() => _loading = false);
-    }
-  }
-
-  Future<void> _updateRole(UserModel user, String role) async {
-    final actorId = widget.appState.user?.uid ?? FirebaseAuth.instance.currentUser?.uid;
-    if (actorId == null) return;
-    await FirebaseFirestore.instance.collection('users').doc(user.id).update({
-      'role': role,
-      'updatedAt': Timestamp.now(),
-    });
-    await AuditLogRepository().log(
-      AuditLogModel(
-        id: 'audit-user-role-${user.id}-${DateTime.now().millisecondsSinceEpoch}',
-        actorId: actorId,
-        actorRole: widget.appState.role ?? 'site',
-        action: 'user.role.update',
-        entityType: 'user',
-        entityId: user.id,
-        siteId: widget.siteId,
-        details: {'newRole': role},
-        createdAt: Timestamp.now(),
-      ),
-    );
-    if (!mounted) return;
-    _toast(context, 'Role updated');
-    _load();
-  }
-
-  Future<void> _updateDisplayName(UserModel user) async {
-    final controller = TextEditingController(text: user.displayName ?? '');
-    final result = await showDialog<String>(
-      context: context,
-      builder: (context) {
-        return AlertDialog(
-          backgroundColor: const Color(0xFF0F172A),
-          title: const Text('Edit display name', style: TextStyle(color: Colors.white)),
-          content: TextField(
-            controller: controller,
-            style: const TextStyle(color: Colors.white),
-            decoration: const InputDecoration(labelText: 'Display name', labelStyle: TextStyle(color: Colors.white70)),
-          ),
-          actions: [
-            TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
-            TextButton(onPressed: () => Navigator.pop(context, controller.text.trim()), child: const Text('Save')),
+              ),
           ],
-        );
-      },
-    );
-    if (result == null) return;
-    await FirebaseFirestore.instance.collection('users').doc(user.id).update({
-      'displayName': result.isEmpty ? null : result,
-      'updatedAt': Timestamp.now(),
-    });
-    if (!mounted) return;
-    _toast(context, 'Display name updated');
-    _load();
-  }
-
-  Future<void> _addSite(UserModel user) async {
-    await FirebaseFirestore.instance.collection('users').doc(user.id).update({
-      'siteIds': FieldValue.arrayUnion(<String>[widget.siteId]),
-      'updatedAt': Timestamp.now(),
-    });
-    if (!mounted) return;
-    _toast(context, 'Added to site');
-    _load();
-  }
-
-  Future<void> _removeSite(UserModel user) async {
-    await FirebaseFirestore.instance.collection('users').doc(user.id).update({
-      'siteIds': FieldValue.arrayRemove(<String>[widget.siteId]),
-      'updatedAt': Timestamp.now(),
-    });
-    if (!mounted) return;
-    _toast(context, 'Removed from site');
-    _load();
-  }
-
-  Future<void> _setActiveSite(UserModel user) async {
-    await FirebaseFirestore.instance.collection('users').doc(user.id).update({
-      'activeSiteId': widget.siteId,
-      'updatedAt': Timestamp.now(),
-    });
-    if (!mounted) return;
-    _toast(context, 'Active site updated');
-    _load();
-  }
-
-  Future<void> _toggleArchive(UserModel user) async {
-    final newArchived = !user.archived;
-    final actorId = widget.appState.user?.uid ?? FirebaseAuth.instance.currentUser?.uid;
-    await FirebaseFirestore.instance.collection('users').doc(user.id).update({
-      'archived': newArchived,
-      'updatedAt': Timestamp.now(),
-    });
-    await AuditLogRepository().log(
-      AuditLogModel(
-        id: 'audit-user-archive-${user.id}-${DateTime.now().millisecondsSinceEpoch}',
-        actorId: actorId ?? 'unknown',
-        actorRole: widget.appState.role ?? 'site',
-        action: newArchived ? 'user.archive' : 'user.restore',
-        entityType: 'user',
-        entityId: user.id,
-        siteId: widget.siteId,
-        details: {'archived': newArchived},
-        createdAt: Timestamp.now(),
-      ),
-    );
-    if (!mounted) return;
-    _toast(context, newArchived ? 'User archived' : 'User restored');
-    _load();
-  }
-
-  Future<void> _deleteUser(UserModel user) async {
-    final confirm = await showDialog<bool>(
-      context: context,
-      builder: (context) {
-        return AlertDialog(
-          backgroundColor: const Color(0xFF0F172A),
-          title: const Text('Delete user?', style: TextStyle(color: Colors.white)),
-          content: Text('This removes the user document. Continue?', style: TextStyle(color: Colors.white.withValues(alpha: 0.85))),
-          actions: [
-            TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancel')),
-            TextButton(onPressed: () => Navigator.pop(context, true), child: const Text('Delete', style: TextStyle(color: Colors.redAccent))),
-          ],
-        );
-      },
-    );
-    if (confirm != true) return;
-    final actorId = widget.appState.user?.uid ?? FirebaseAuth.instance.currentUser?.uid;
-    await FirebaseFirestore.instance.collection('users').doc(user.id).delete();
-    await AuditLogRepository().log(
-      AuditLogModel(
-        id: 'audit-user-delete-${user.id}-${DateTime.now().millisecondsSinceEpoch}',
-        actorId: actorId ?? 'unknown',
-        actorRole: widget.appState.role ?? 'site',
-        action: 'user.delete',
-        entityType: 'user',
-        entityId: user.id,
-        siteId: widget.siteId,
-        details: {'email': user.email},
-        createdAt: Timestamp.now(),
-      ),
-    );
-    if (!mounted) return;
-    _toast(context, 'User deleted');
-    _load();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final filtered = _users.where((u) {
-      final term = _search.text.trim().toLowerCase();
-      if (term.isEmpty) return true;
-      return u.id.toLowerCase().contains(term) || u.email.toLowerCase().contains(term);
-    }).where((u) => _showArchived ? true : !u.archived).toList();
-
-    return _GlassCard(
-      title: 'User management',
-      subtitle: 'View and adjust users scoped to this site.',
-      child: Column(
-        children: [
-          Row(
-            children: [
-              Expanded(child: _TextField(controller: _newUserId, label: 'User ID', hint: 'uid or email prefix')),
-              const SizedBox(width: 8),
-              Expanded(child: _TextField(controller: _newEmail, label: 'Email', hint: 'user@example.com')),
-            ],
-          ),
-          const SizedBox(height: 8),
-          Row(
-            children: [
-              Expanded(child: _TextField(controller: _newDisplayName, label: 'Display name (optional)', hint: 'Name')),
-              const SizedBox(width: 8),
-              DropdownButton<String>(
-                value: _newRole,
-                dropdownColor: const Color(0xFF0F172A),
-                items: const [
-                  DropdownMenuItem(value: 'learner', child: Text('Learner')),
-                  DropdownMenuItem(value: 'educator', child: Text('Educator')),
-                  DropdownMenuItem(value: 'parent', child: Text('Parent')),
-                  DropdownMenuItem(value: 'site', child: Text('Site')),
-                  DropdownMenuItem(value: 'partner', child: Text('Partner')),
-                  DropdownMenuItem(value: 'hq', child: Text('HQ')),
-                ],
-                onChanged: (value) => setState(() => _newRole = value ?? 'learner'),
-                iconEnabledColor: Colors.white,
-                style: const TextStyle(color: Colors.white),
-              ),
-              const SizedBox(width: 8),
-              ElevatedButton.icon(
-                onPressed: _loading ? null : _createUser,
-                icon: const Icon(Icons.person_add, color: Colors.white),
-                label: Text(_loading ? 'Working...' : 'Add user'),
-              ),
-            ],
-          ),
-          const SizedBox(height: 12),
-          Row(
-            children: [
-              Expanded(child: _TextField(controller: _search, label: 'Search by email or ID', hint: 'user@example.com')),
-              const SizedBox(width: 8),
-              IconButton(
-                onPressed: _loading ? null : _load,
-                icon: _loading
-                    ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))
-                    : const Icon(Icons.refresh, color: Colors.white),
-              ),
-              const SizedBox(width: 8),
-              Row(
-                children: [
-                  const Text('Show archived', style: TextStyle(color: Colors.white70)),
-                  Switch(
-                    value: _showArchived,
-                    thumbColor: const WidgetStatePropertyAll(Color(0xFF38BDF8)),
-                    onChanged: (v) => setState(() => _showArchived = v),
-                  ),
-                ],
-              ),
-            ],
-          ),
-          const SizedBox(height: 12),
-          if (_loading)
-            const Align(
-              alignment: Alignment.centerLeft,
-              child: Padding(
-                padding: EdgeInsets.only(bottom: 8),
-                child: Row(
-                  children: [
-                    SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2)),
-                    SizedBox(width: 8),
-                    Text('Loading users...', style: TextStyle(color: Colors.white70)),
-                  ],
-                ),
-              ),
-            ),
-          if (!_loading && filtered.isEmpty)
-            Text('No users for this site yet.', style: TextStyle(color: Colors.white.withValues(alpha: 0.7))),
-          ListView.separated(
-            shrinkWrap: true,
-            physics: const NeverScrollableScrollPhysics(),
-            itemCount: filtered.length,
-            separatorBuilder: (_, unused) => const Divider(color: Colors.white12, height: 1),
-            itemBuilder: (context, index) {
-              final user = filtered[index];
-              final isMember = user.siteIds.contains(widget.siteId);
-              return ListTile(
-                dense: true,
-                title: Row(
-                  children: [
-                    Expanded(child: Text('${user.email} • ${user.id}', style: const TextStyle(color: Colors.white))),
-                    if (user.archived)
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                        decoration: BoxDecoration(
-                          color: Colors.redAccent.withValues(alpha: 0.3),
-                          borderRadius: BorderRadius.circular(8),
-                          border: Border.all(color: Colors.redAccent.withValues(alpha: 0.6)),
-                        ),
-                        child: const Text('ARCHIVED', style: TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.w700)),
-                      ),
-                  ],
-                ),
-                subtitle: Text(
-                  'Role: ${user.role} • Sites: ${user.siteIds.join(', ')}${user.activeSiteId != null ? ' • Active: ${user.activeSiteId}' : ''}${user.displayName != null ? ' • Name: ${user.displayName}' : ''}',
-                  style: const TextStyle(color: Colors.white70),
-                ),
-                trailing: SizedBox(
-                  width: 330,
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.end,
-                    children: [
-                      IconButton(
-                        tooltip: 'Edit display name',
-                        onPressed: () => _updateDisplayName(user),
-                        icon: const Icon(Icons.edit, color: Colors.white70, size: 20),
-                      ),
-                      DropdownButton<String>(
-                        value: user.role,
-                        dropdownColor: const Color(0xFF0F172A),
-                        underline: const SizedBox.shrink(),
-                        items: const [
-                          DropdownMenuItem(value: 'learner', child: Text('Learner')),
-                          DropdownMenuItem(value: 'educator', child: Text('Educator')),
-                          DropdownMenuItem(value: 'parent', child: Text('Parent')),
-                          DropdownMenuItem(value: 'site', child: Text('Site')),
-                          DropdownMenuItem(value: 'partner', child: Text('Partner')),
-                          DropdownMenuItem(value: 'hq', child: Text('HQ')),
-                        ],
-                        onChanged: (value) {
-                          if (value != null && value != user.role) {
-                            _updateRole(user, value);
-                          }
-                        },
-                        iconEnabledColor: Colors.white,
-                        style: const TextStyle(color: Colors.white),
-                      ),
-                      IconButton(
-                        tooltip: 'Add to site',
-                        onPressed: isMember ? null : () => _addSite(user),
-                        icon: const Icon(Icons.add_home_work, color: Colors.white70, size: 20),
-                      ),
-                      IconButton(
-                        tooltip: 'Remove from site',
-                        onPressed: isMember ? () => _removeSite(user) : null,
-                        icon: const Icon(Icons.remove_circle_outline, color: Colors.white70, size: 20),
-                      ),
-                      IconButton(
-                        tooltip: 'Set active site',
-                        onPressed: () => _setActiveSite(user),
-                        icon: const Icon(Icons.push_pin, color: Colors.white70, size: 20),
-                      ),
-                      IconButton(
-                        tooltip: user.archived ? 'Restore user' : 'Archive user',
-                        onPressed: () => _toggleArchive(user),
-                        icon: Icon(user.archived ? Icons.unarchive : Icons.archive, color: Colors.white70, size: 20),
-                      ),
-                      IconButton(
-                        tooltip: 'Delete user',
-                        onPressed: () => _deleteUser(user),
-                        icon: const Icon(Icons.delete_outline, color: Colors.redAccent, size: 20),
-                      ),
-                    ],
-                  ),
-                ),
-              );
-            },
-          ),
-        ],
+        ),
       ),
     );
   }
-}
 
-class _ParentSummaryCard extends StatefulWidget {
-  const _ParentSummaryCard({required this.appState, this.siteId});
-
-  final AppState appState;
-  final String? siteId;
-
-  @override
-  State<_ParentSummaryCard> createState() => _ParentSummaryCardState();
-}
-
-class _MissionListCard extends StatefulWidget {
-  const _MissionListCard({required this.siteId, required this.learnerId});
-
-  final String siteId;
-  final String? learnerId;
-
-  @override
-  State<_MissionListCard> createState() => _MissionListCardState();
-}
-
-class _MissionListCardState extends State<_MissionListCard> {
-  List<MissionModel> _missions = <MissionModel>[];
-  List<MissionAttemptModel> _attempts = <MissionAttemptModel>[];
-  bool _loading = false;
-
-  @override
-  void initState() {
-    super.initState();
-    _load();
-  }
-
-  Future<void> _load() async {
-    setState(() => _loading = true);
-    try {
-      final missions = await _fetchMissions();
-      final attempts = await _fetchAttempts();
-      if (!mounted) return;
-      setState(() {
-        _missions = missions;
-        _attempts = attempts;
-        _loading = false;
-      });
-    } finally {
-      if (mounted && _loading) setState(() => _loading = false);
-    }
-  }
-
-  Future<List<MissionModel>> _fetchMissions() async {
-    final missions = <MissionModel>[];
-    final siteSnap = await FirebaseFirestore.instance
-        .collection('missions')
-        .where('siteId', isEqualTo: widget.siteId)
-        .get();
-    missions.addAll(siteSnap.docs.map(MissionModel.fromDoc));
-    final globalSnap = await FirebaseFirestore.instance
-        .collection('missions')
-        .where('siteId', isNull: true)
-        .get();
-    missions.addAll(globalSnap.docs.map(MissionModel.fromDoc));
-    final seen = <String>{};
-    final deduped = <MissionModel>[];
-    for (final m in missions) {
-      if (seen.add(m.id)) deduped.add(m);
-    }
-    return deduped;
-  }
-
-  Future<List<MissionAttemptModel>> _fetchAttempts() async {
-    final learnerId = widget.learnerId;
-    if (learnerId == null || learnerId.isEmpty) return <MissionAttemptModel>[];
-    final snap = await FirebaseFirestore.instance
-        .collection('missionAttempts')
-        .where('learnerId', isEqualTo: learnerId)
-        .orderBy('createdAt', descending: true)
-        .limit(10)
-        .get();
-    return snap.docs.map(MissionAttemptModel.fromDoc).toList();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return _GlassCard(
-      title: 'Available missions',
-      subtitle: 'Site-specific and global missions with recent attempts.',
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          if (_loading)
-            const Padding(
-              padding: EdgeInsets.only(bottom: 8),
-              child: Row(
-                children: [
-                  SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2)),
-                  SizedBox(width: 8),
-                  Text('Loading missions...', style: TextStyle(color: Colors.white70)),
-                ],
-              ),
-            ),
-          if (_missions.isNotEmpty)
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text('Missions', style: TextStyle(color: Colors.white70, fontWeight: FontWeight.w700)),
-                const SizedBox(height: 6),
-                ListView.separated(
-                  shrinkWrap: true,
-                  physics: const NeverScrollableScrollPhysics(),
-                  itemCount: _missions.length,
-                  separatorBuilder: (_, unused) => const Divider(color: Colors.white10, height: 1),
-                  itemBuilder: (context, index) {
-                    final m = _missions[index];
-                    final pillars = (m.pillarCodes).join(' • ');
-                    final scope = (m.siteId == null || (m.siteId?.isEmpty ?? true)) ? 'Global' : 'Site';
-                    return ListTile(
-                      dense: true,
-                      title: Text(m.title, style: const TextStyle(color: Colors.white)),
-                      subtitle: Text('$scope • $pillars', style: const TextStyle(color: Colors.white70)),
-                      onTap: () {
-                        Clipboard.setData(ClipboardData(text: m.id));
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(content: Text('Mission ID ${m.id} copied. Paste into the form above.')),
-                        );
-                      },
-                    );
-                  },
-                ),
-              ],
-            ),
-          if (_missions.isEmpty && !_loading)
-            const Text('No missions available yet.', style: TextStyle(color: Colors.white70)),
-          const SizedBox(height: 12),
-          if (_attempts.isNotEmpty)
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text('Recent attempts', style: TextStyle(color: Colors.white70, fontWeight: FontWeight.w700)),
-                const SizedBox(height: 6),
-                ListView.separated(
-                  shrinkWrap: true,
-                  physics: const NeverScrollableScrollPhysics(),
-                  itemCount: _attempts.length,
-                  separatorBuilder: (_, unused) => const Divider(color: Colors.white10, height: 1),
-                  itemBuilder: (context, index) {
-                    final a = _attempts[index];
-                    return ListTile(
-                      dense: true,
-                      title: Text(a.missionId, style: const TextStyle(color: Colors.white)),
-                      subtitle: Text('Status: ${a.status}${a.reflection != null ? ' • ${a.reflection}' : ''}', style: const TextStyle(color: Colors.white70)),
-                    );
-                  },
-                ),
-              ],
-            ),
-          if (_attempts.isEmpty && !_loading)
-            const Text('No attempts yet.', style: TextStyle(color: Colors.white70)),
-        ],
-      ),
-    );
+  String _fmt(DateTime dt) {
+    final local = dt.toLocal();
+    final m = local.month.toString().padLeft(2, '0');
+    final d = local.day.toString().padLeft(2, '0');
+    final h = local.hour.toString().padLeft(2, '0');
+    final min = local.minute.toString().padLeft(2, '0');
+    return '${local.year}-$m-$d $h:$min';
   }
 }
 
-class _ParentSummaryCardState extends State<_ParentSummaryCard> {
-  final TextEditingController _learnerId = TextEditingController();
-  final TextEditingController _ackNote = TextEditingController();
-  bool _loading = false;
-  List<Map<String, String>> _portfolio = <Map<String, String>>[];
+class _SiteProvisionCard extends StatefulWidget {
+  const _SiteProvisionCard();
 
   @override
-  void dispose() {
-    _learnerId.dispose();
-    _ackNote.dispose();
-    super.dispose();
-  }
-
-  Future<void> _load() async {
-    final learnerId = _learnerId.text.trim();
-    if (learnerId.isEmpty) {
-      _toast(context, 'Learner ID required');
-      return;
-    }
-    setState(() => _loading = true);
-    try {
-      Query<Map<String, dynamic>> query = FirebaseFirestore.instance
-          .collection('portfolioItems')
-          .where('learnerId', isEqualTo: learnerId)
-          .orderBy('createdAt', descending: true)
-          .limit(5);
-      if (widget.siteId != null) {
-        query = query.where('siteId', isEqualTo: widget.siteId);
-      }
-      final snap = await query.get();
-      if (mounted) {
-        setState(() {
-          _portfolio = snap.docs
-              .map((QueryDocumentSnapshot<Map<String, dynamic>> doc) {
-                final data = doc.data();
-                final pillars = (data['pillarCodes'] as List?)?.whereType<String>().join(' • ');
-                return <String, String>{
-                  'title': data['title'] as String? ?? 'Untitled',
-                  'description': data['description'] as String? ?? '',
-                  'pillars': pillars ?? '',
-                };
-              })
-              .toList();
-        });
-      }
-    } finally {
-      if (mounted) {
-        setState(() => _loading = false);
-      }
-    }
-  }
-
-  Future<void> _acknowledge() async {
-    final learnerId = _learnerId.text.trim();
-    final note = _ackNote.text.trim();
-    final reviewerId = widget.appState.user?.uid ?? FirebaseAuth.instance.currentUser?.uid;
-    if (learnerId.isEmpty || reviewerId == null) {
-      _toast(context, 'Learner ID and sign-in required');
-      return;
-    }
-    final repo = AccountabilityReviewRepository();
-    final model = AccountabilityReviewModel(
-      id: FirebaseFirestore.instance.collection('accountabilityReviews').doc().id,
-      cycleId: 'weekly-summary',
-      reviewerId: reviewerId,
-      revieweeId: learnerId,
-      notes: note.isEmpty ? null : note,
-      rating: 5,
-      createdAt: Timestamp.now(),
-      updatedAt: Timestamp.now(),
-    );
-    await repo.upsert(model);
-    if (!mounted) return;
-    _toast(context, 'Summary acknowledged');
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return _GlassCard(
-      title: 'Parent weekly summary',
-      subtitle: 'View latest portfolio items and acknowledge.',
-      child: Column(
-        children: [
-          _TextField(controller: _learnerId, label: 'Learner ID', hint: 'child uid'),
-          const SizedBox(height: 8),
-          _TextField(controller: _ackNote, label: 'Note (optional)', hint: 'Encouragement or feedback'),
-          const SizedBox(height: 12),
-          Row(
-            children: [
-              Expanded(
-                child: ElevatedButton.icon(
-                  icon: const Icon(Icons.refresh, color: Colors.white),
-                  label: const Text('Load updates'),
-                  onPressed: _loading ? null : _load,
-                ),
-              ),
-              const SizedBox(width: 8),
-              Expanded(
-                child: ElevatedButton.icon(
-                  icon: const Icon(Icons.check_circle, color: Colors.white),
-                  label: const Text('Acknowledge'),
-                  onPressed: _acknowledge,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 12),
-          if (_loading) const CircularProgressIndicator(),
-          if (!_loading && _portfolio.isNotEmpty)
-            Column(
-              children: _portfolio
-                  .map(
-                    (Map<String, String> item) => ListTile(
-                      title: Text(item['title'] ?? '', style: const TextStyle(color: Colors.white)),
-                      subtitle: Text(
-                        [item['description'], item['pillars']].where((String? v) => v != null && v.isNotEmpty).join(' • '),
-                        style: const TextStyle(color: Colors.white70),
-                      ),
-                    ),
-                  )
-                  .toList(),
-            ),
-        ],
-      ),
-    );
-  }
+  State<_SiteProvisionCard> createState() => _SiteProvisionCardState();
 }
 
-class _SiteSessionForm extends StatefulWidget {
-  const _SiteSessionForm({required this.siteId, required this.appState});
-
-  final String siteId;
-  final AppState appState;
-
-  @override
-  State<_SiteSessionForm> createState() => _SiteSessionFormState();
-}
-
-class _SiteSessionFormState extends State<_SiteSessionForm> {
-  final TextEditingController _name = TextEditingController();
-  final TextEditingController _educatorId = TextEditingController();
-  final TextEditingController _pillars = TextEditingController(text: 'FUTURE_SKILLS');
+class _SiteProvisionCardState extends State<_SiteProvisionCard> {
+  final _siteId = TextEditingController();
+  final _name = TextEditingController();
+  final _timezone = TextEditingController(text: 'UTC');
+  final _address = TextEditingController();
+  final _adminIds = TextEditingController();
+  final _repo = SiteRepository();
   bool _saving = false;
 
   @override
   void dispose() {
+    _siteId.dispose();
     _name.dispose();
-    _educatorId.dispose();
+    _timezone.dispose();
+    _address.dispose();
+    _adminIds.dispose();
+    super.dispose();
+  }
+
+  Future<void> _submit() async {
+    final id = _siteId.text.trim();
+    final name = _name.text.trim();
+    if (id.isEmpty || name.isEmpty) {
+      _toast('Site ID and name are required');
+      return;
+    }
+    setState(() => _saving = true);
+    final admins = _adminIds.text
+        .split(',')
+        .map((e) => e.trim())
+        .where((e) => e.isNotEmpty)
+        .toList();
+    final model = SiteModel(
+      id: id,
+      name: name,
+      timezone: _timezone.text.trim().isEmpty ? null : _timezone.text.trim(),
+      address: _address.text.trim().isEmpty ? null : _address.text.trim(),
+      adminUserIds: admins,
+      createdAt: null,
+      updatedAt: null,
+    );
+    try {
+      await _repo.upsert(model);
+      if (!mounted) return;
+      _toast('Site saved');
+    } catch (e) {
+      if (!mounted) return;
+      _toast('Failed: $e');
+    } finally {
+      if (mounted) setState(() => _saving = false);
+    }
+  }
+
+  void _toast(String msg) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(12),
+        child: Column(
+          children: [
+            _LabeledField(label: 'Site ID', controller: _siteId, hint: 'site-123'),
+            const SizedBox(height: 8),
+            _LabeledField(label: 'Name', controller: _name, hint: 'New Studio'),
+            const SizedBox(height: 8),
+            _LabeledField(label: 'Timezone', controller: _timezone, hint: 'UTC or Continent/City'),
+            const SizedBox(height: 8),
+            _LabeledField(label: 'Address (optional)', controller: _address, hint: 'City, Country'),
+            const SizedBox(height: 8),
+            _LabeledField(label: 'Admin user IDs (comma separated)', controller: _adminIds, hint: 'uid1,uid2'),
+            const SizedBox(height: 12),
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton.icon(
+                onPressed: _saving ? null : _submit,
+                icon: _saving
+                    ? const SizedBox(height: 16, width: 16, child: CircularProgressIndicator(strokeWidth: 2))
+                    : const Icon(Icons.save),
+                label: Text(_saving ? 'Saving...' : 'Save site'),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _CardTitle extends StatelessWidget {
+  const _CardTitle(this.text);
+
+  final String text;
+
+  @override
+  Widget build(BuildContext context) {
+    return Text(text, style: Theme.of(context).textTheme.titleMedium);
+  }
+}
+
+class _AttendanceCard extends StatefulWidget {
+  @override
+  State<_AttendanceCard> createState() => _AttendanceCardState();
+}
+
+class _AttendanceCardState extends State<_AttendanceCard> {
+  final _siteId = TextEditingController();
+  final _sessionOccurrenceId = TextEditingController();
+  final _learnerId = TextEditingController();
+  String _status = 'present';
+  bool _submitting = false;
+  bool _loading = false;
+  final _attendanceRepo = AttendanceRepository();
+  List<AttendanceRecordModel> _recent = <AttendanceRecordModel>[];
+
+  @override
+  void dispose() {
+    _siteId.dispose();
+    _sessionOccurrenceId.dispose();
+    _learnerId.dispose();
+    super.dispose();
+  }
+
+  Future<void> _submit() async {
+    final siteId = _siteId.text.trim();
+    final sessionOccurrenceId = _sessionOccurrenceId.text.trim();
+    final learnerId = _learnerId.text.trim();
+    if (siteId.isEmpty || sessionOccurrenceId.isEmpty || learnerId.isEmpty) {
+      _toast('Fill site, session, learner.');
+      return;
+    }
+    setState(() => _submitting = true);
+    final queue = context.read<OfflineQueue>();
+    final offline = context.read<OfflineService>();
+    final user = FirebaseAuth.instance.currentUser;
+    final action = PendingAction(
+      id: _buildId('attendance', user?.uid),
+      type: 'attendance',
+      payload: {
+        'siteId': siteId,
+        'sessionOccurrenceId': sessionOccurrenceId,
+        'learnerId': learnerId,
+        'status': _status,
+        'recordedBy': user?.uid,
+        'actorRole': 'educator',
+      },
+      createdAt: DateTime.now().toUtc(),
+    );
+    await queue.enqueue(action);
+    await queue.flush(online: !offline.isOffline);
+    setState(() => _submitting = false);
+    _toast(offline.isOffline ? 'Queued offline' : 'Recorded');
+    if (!offline.isOffline) {
+      await _load();
+    }
+  }
+
+  Future<void> _load() async {
+    final siteId = _siteId.text.trim();
+    if (siteId.isEmpty) {
+      _toast('Enter site ID');
+      return;
+    }
+    setState(() => _loading = true);
+    try {
+      final items = await _attendanceRepo.listRecentBySite(siteId, limit: 8);
+      if (!mounted) return;
+      setState(() => _recent = items);
+    } finally {
+      if (mounted) setState(() => _loading = false);
+    }
+  }
+
+  String _deterministicIdHint() {
+    final sessionId = _sessionOccurrenceId.text.trim();
+    final learnerId = _learnerId.text.trim();
+    if (sessionId.isEmpty || learnerId.isEmpty) return '';
+    return AttendanceRepository().deterministicId(sessionId, learnerId);
+  }
+
+  String _fmt(DateTime dt) {
+    final local = dt.toLocal();
+    final y = local.year.toString();
+    final m = local.month.toString().padLeft(2, '0');
+    final d = local.day.toString().padLeft(2, '0');
+    final h = local.hour.toString().padLeft(2, '0');
+    final min = local.minute.toString().padLeft(2, '0');
+    return '$y-$m-$d $h:$min';
+  }
+
+  void _toast(String msg) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(12),
+        child: Column(
+          children: [
+            _LabeledField(label: 'Site ID', controller: _siteId, hint: 'site-123'),
+            const SizedBox(height: 8),
+            _LabeledField(
+              label: 'Session occurrence ID',
+              controller: _sessionOccurrenceId,
+              hint: 'session-occ-123',
+              onChanged: (_) => setState(() {}),
+            ),
+            const SizedBox(height: 8),
+            _LabeledField(
+              label: 'Learner ID',
+              controller: _learnerId,
+              hint: 'learner-123',
+              onChanged: (_) => setState(() {}),
+            ),
+            const SizedBox(height: 8),
+            Align(
+              alignment: Alignment.centerLeft,
+              child: DropdownButton<String>(
+                value: _status,
+                items: const [
+                  DropdownMenuItem(value: 'present', child: Text('Present')),
+                  DropdownMenuItem(value: 'late', child: Text('Late')),
+                  DropdownMenuItem(value: 'absent', child: Text('Absent')),
+                ],
+                onChanged: (value) => setState(() => _status = value ?? 'present'),
+              ),
+            ),
+            const SizedBox(height: 12),
+            if (_deterministicIdHint().isNotEmpty)
+              Align(
+                alignment: Alignment.centerLeft,
+                child: Text('Deterministic ID: ${_deterministicIdHint()}',
+                    style: const TextStyle(fontSize: 12, color: Colors.black54)),
+              ),
+            const SizedBox(height: 12),
+            Row(
+              children: [
+                Expanded(
+                  child: ElevatedButton.icon(
+                    onPressed: _submitting ? null : _submit,
+                    icon: _submitting
+                        ? const SizedBox(height: 16, width: 16, child: CircularProgressIndicator(strokeWidth: 2))
+                        : const Icon(Icons.check),
+                    label: Text(_submitting ? 'Saving...' : 'Save attendance'),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                TextButton.icon(
+                  onPressed: _loading ? null : _load,
+                  icon: _loading
+                      ? const SizedBox(height: 16, width: 16, child: CircularProgressIndicator(strokeWidth: 2))
+                      : const Icon(Icons.refresh),
+                  label: Text(_loading ? 'Loading...' : 'Load recent'),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            if (_recent.isEmpty)
+              const Text('No recent attendance loaded yet.')
+            else
+              ListView.separated(
+                shrinkWrap: true,
+                physics: const NeverScrollableScrollPhysics(),
+                itemCount: _recent.length,
+                separatorBuilder: (_, index) => const Divider(height: 1),
+                itemBuilder: (context, index) {
+                  final item = _recent[index];
+                  final created = item.createdAt?.toDate();
+                  final idPreview = _attendanceRepo.deterministicId(item.sessionOccurrenceId, item.learnerId);
+                  return ListTile(
+                    title: Text('${item.learnerId} • ${item.status}'),
+                    subtitle: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text('Session: ${item.sessionOccurrenceId}',
+                            style: const TextStyle(fontSize: 12, color: Colors.black54)),
+                        if (created != null)
+                          Text(_fmt(created), style: const TextStyle(fontSize: 12, color: Colors.black54)),
+                        Text('Deterministic ID: $idPreview',
+                            style: const TextStyle(fontSize: 12, color: Colors.black54)),
+                      ],
+                    ),
+                  );
+                },
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _MissionAttemptCard extends StatefulWidget {
+  const _MissionAttemptCard({required this.role});
+
+  final String role;
+
+  @override
+  State<_MissionAttemptCard> createState() => _MissionAttemptCardState();
+}
+
+class _MissionAttemptCardState extends State<_MissionAttemptCard> {
+  final _siteId = TextEditingController();
+  final _missionId = TextEditingController();
+  final _sessionOccurrenceId = TextEditingController();
+  final _reflection = TextEditingController();
+  final _artifactUrls = TextEditingController();
+  final _pillars = TextEditingController(text: 'FUTURE_SKILLS,LEADERSHIP_AGENCY,IMPACT_INNOVATION');
+  bool _submitting = false;
+
+  @override
+  void dispose() {
+    _siteId.dispose();
+    _missionId.dispose();
+    _sessionOccurrenceId.dispose();
+    _reflection.dispose();
+    _artifactUrls.dispose();
     _pillars.dispose();
     super.dispose();
   }
 
-  Future<void> _save() async {
-    final name = _name.text.trim();
-    if (name.isEmpty) {
-      _toast(context, 'Session name required');
+  Future<void> _submit() async {
+    final siteId = _siteId.text.trim();
+    final missionId = _missionId.text.trim();
+    if (siteId.isEmpty || missionId.isEmpty) {
+      _toast('Fill site and mission.');
       return;
     }
-    setState(() => _saving = true);
-    try {
-      final sessionRepo = SessionRepository();
-      final auditRepo = AuditLogRepository();
-      final sessionId = FirebaseFirestore.instance.collection('sessions').doc().id;
-      final model = SessionModel(
-        id: sessionId,
-        siteId: widget.siteId,
-        name: name,
-        educatorId: _educatorId.text.trim().isEmpty ? null : _educatorId.text.trim(),
-        pillarEmphasis: _splitCodes(_pillars.text),
-        schedule: null,
-        createdAt: Timestamp.now(),
-        updatedAt: Timestamp.now(),
-      );
-      await sessionRepo.upsert(model);
-      final actorId = widget.appState.user?.uid ?? FirebaseAuth.instance.currentUser?.uid ?? 'unknown';
-      await auditRepo.log(
-        AuditLogModel(
-          id: 'audit-session-$sessionId',
-          actorId: actorId,
-          actorRole: 'site',
-          action: 'session.upsert',
-          entityType: 'session',
-          entityId: sessionId,
-          siteId: widget.siteId,
-          details: {'name': name, 'educatorId': model.educatorId},
-          createdAt: Timestamp.now(),
-        ),
-      );
-      if (mounted) {
-        _toast(context, 'Session created');
-      }
-    } finally {
-      if (mounted) {
-        setState(() => _saving = false);
-      }
-    }
+    setState(() => _submitting = true);
+    final queue = context.read<OfflineQueue>();
+    final offline = context.read<OfflineService>();
+    final user = FirebaseAuth.instance.currentUser;
+    final learnerId = user?.uid ?? 'anonymous';
+    final payload = {
+      'siteId': siteId,
+      'missionId': missionId,
+      'sessionOccurrenceId': _sessionOccurrenceId.text.trim().isEmpty ? null : _sessionOccurrenceId.text.trim(),
+      'reflection': _reflection.text.trim().isEmpty ? null : _reflection.text.trim(),
+      'artifactUrls': _splitList(_artifactUrls.text),
+      'pillarCodes': _splitList(_pillars.text),
+      'learnerId': learnerId,
+      'status': 'submitted',
+      'actorRole': widget.role,
+    };
+    final action = PendingAction(
+      id: _buildId('missionAttempt', learnerId),
+      type: 'missionAttempt',
+      payload: payload,
+      createdAt: DateTime.now().toUtc(),
+    );
+    await queue.enqueue(action);
+    await queue.flush(online: !offline.isOffline);
+    setState(() => _submitting = false);
+    _toast(offline.isOffline ? 'Queued offline' : 'Submitted');
+  }
+
+  List<String> _splitList(String text) {
+    return text
+        .split(',')
+        .map((v) => v.trim())
+        .where((v) => v.isNotEmpty)
+        .toList();
+  }
+
+  void _toast(String msg) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
   }
 
   @override
   Widget build(BuildContext context) {
-    return _GlassCard(
-      title: 'Site: add session',
-      subtitle: 'Online create with pillar emphasis.',
-      child: Column(
-        children: [
-          _TextField(controller: _name, label: 'Session name', hint: 'Robotics Lab'),
-          const SizedBox(height: 8),
-          _TextField(controller: _educatorId, label: 'Educator ID (optional)', hint: 'uid'),
-          const SizedBox(height: 8),
-          _TextField(controller: _pillars, label: 'Pillar codes (comma separated)', hint: 'FUTURE_SKILLS'),
-          const SizedBox(height: 12),
-          SizedBox(
-            width: double.infinity,
-            child: ElevatedButton.icon(
-              icon: const Icon(Icons.add_circle, color: Colors.white),
-              label: Text(_saving ? 'Saving...' : 'Create session'),
-              onPressed: _saving ? null : _save,
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(12),
+        child: Column(
+          children: [
+            _LabeledField(label: 'Site ID', controller: _siteId, hint: 'site-123'),
+            const SizedBox(height: 8),
+            _LabeledField(label: 'Mission ID', controller: _missionId, hint: 'mission-123'),
+            const SizedBox(height: 8),
+            _LabeledField(label: 'Session occurrence (optional)', controller: _sessionOccurrenceId, hint: 'session-occ-123'),
+            const SizedBox(height: 8),
+            _LabeledField(label: 'Artifact URLs (comma separated)', controller: _artifactUrls, hint: 'https://...'),
+            const SizedBox(height: 8),
+            _LabeledField(label: 'Pillar codes (comma separated)', controller: _pillars, hint: 'FUTURE_SKILLS'),
+            const SizedBox(height: 8),
+            _LabeledField(label: 'Reflection', controller: _reflection, hint: 'What did you learn?'),
+            const SizedBox(height: 12),
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton.icon(
+                onPressed: _submitting ? null : _submit,
+                icon: _submitting
+                    ? const SizedBox(height: 16, width: 16, child: CircularProgressIndicator(strokeWidth: 2))
+                    : const Icon(Icons.send),
+                label: Text(_submitting ? 'Submitting...' : 'Submit mission attempt'),
+              ),
             ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _PartnerDeliverableForm extends StatefulWidget {
-  const _PartnerDeliverableForm({required this.appState});
-
-  final AppState appState;
-
-  @override
-  State<_PartnerDeliverableForm> createState() => _PartnerDeliverableFormState();
-}
-
-class _PartnerDeliverableFormState extends State<_PartnerDeliverableForm> {
-  final TextEditingController _contractId = TextEditingController();
-  final TextEditingController _title = TextEditingController();
-  final TextEditingController _url = TextEditingController();
-  String _status = 'submitted';
-  bool _saving = false;
-
-  @override
-  void dispose() {
-    _contractId.dispose();
-    _title.dispose();
-    _url.dispose();
-    super.dispose();
-  }
-
-  Future<void> _save() async {
-    final contractId = _contractId.text.trim();
-    final title = _title.text.trim();
-    if (contractId.isEmpty || title.isEmpty) {
-      _toast(context, 'Contract ID and title required');
-      return;
-    }
-    final partnerId = widget.appState.user?.uid ?? FirebaseAuth.instance.currentUser?.uid;
-    if (partnerId == null) {
-      _toast(context, 'Sign in required');
-      return;
-    }
-    setState(() => _saving = true);
-    try {
-      final doc = await FirebaseFirestore.instance.collection('partnerDeliverables').add({
-        'contractId': contractId,
-        'title': title,
-        'status': _status,
-        'url': _url.text.trim().isEmpty ? null : _url.text.trim(),
-        'partnerId': partnerId,
-        'createdAt': Timestamp.now(),
-      });
-      await AuditLogRepository().log(
-        AuditLogModel(
-          id: 'audit-deliverable-${doc.id}',
-          actorId: partnerId,
-          actorRole: 'partner',
-          action: 'deliverable.submit',
-          entityType: 'partnerDeliverable',
-          entityId: doc.id,
-          siteId: null,
-          details: {'contractId': contractId, 'status': _status},
-          createdAt: Timestamp.now(),
+          ],
         ),
-      );
-      if (mounted) {
-        _toast(context, 'Deliverable submitted');
-      }
-    } finally {
-      if (mounted) {
-        setState(() => _saving = false);
-      }
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return _GlassCard(
-      title: 'Partner deliverable',
-      subtitle: 'Online submission with status tracking.',
-      child: Column(
-        children: [
-          _TextField(controller: _contractId, label: 'Contract ID', hint: 'contract-123'),
-          const SizedBox(height: 8),
-          _TextField(controller: _title, label: 'Deliverable title', hint: 'Workshop slides'),
-          const SizedBox(height: 8),
-          DropdownButtonFormField<String>(
-            initialValue: _status,
-            dropdownColor: const Color(0xFF0F172A),
-            decoration: _inputDecoration('Status'),
-            items: const [
-              DropdownMenuItem(value: 'submitted', child: Text('Submitted')),
-              DropdownMenuItem(value: 'in_review', child: Text('In review')),
-              DropdownMenuItem(value: 'approved', child: Text('Approved')),
-            ],
-            onChanged: (value) => setState(() => _status = value ?? 'submitted'),
-          ),
-          const SizedBox(height: 8),
-          _TextField(controller: _url, label: 'Artifact URL (optional)', hint: 'https://...'),
-          const SizedBox(height: 12),
-          SizedBox(
-            width: double.infinity,
-            child: ElevatedButton.icon(
-              icon: const Icon(Icons.cloud_upload, color: Colors.white),
-              label: Text(_saving ? 'Submitting...' : 'Submit deliverable'),
-              onPressed: _saving ? null : _save,
-            ),
-          ),
-        ],
       ),
     );
   }
 }
 
-class _HqKpiForm extends StatefulWidget {
-  const _HqKpiForm({required this.appState});
+class _LabeledField extends StatelessWidget {
+  const _LabeledField({required this.label, required this.controller, required this.hint, this.onChanged});
 
-  final AppState appState;
-
-  @override
-  State<_HqKpiForm> createState() => _HqKpiFormState();
-}
-
-class _HqKpiFormState extends State<_HqKpiForm> {
-  final TextEditingController _cycleId = TextEditingController(text: 'network-fy');
-  final TextEditingController _name = TextEditingController();
-  final TextEditingController _target = TextEditingController(text: '100');
-  final TextEditingController _current = TextEditingController(text: '0');
-  final TextEditingController _unit = TextEditingController(text: 'learners');
-  bool _saving = false;
-
-  @override
-  void dispose() {
-    _cycleId.dispose();
-    _name.dispose();
-    _target.dispose();
-    _current.dispose();
-    _unit.dispose();
-    super.dispose();
-  }
-
-  Future<void> _save() async {
-    final name = _name.text.trim();
-    final target = double.tryParse(_target.text.trim());
-    final current = double.tryParse(_current.text.trim());
-    if (name.isEmpty || target == null || current == null) {
-      _toast(context, 'Name, target, and current value required');
-      return;
-    }
-    final actorId = widget.appState.user?.uid ?? FirebaseAuth.instance.currentUser?.uid;
-    if (actorId == null) {
-      _toast(context, 'Sign in required');
-      return;
-    }
-    setState(() => _saving = true);
-    try {
-      final repo = AccountabilityKPIRepository();
-      final kpiId = FirebaseFirestore.instance.collection('accountabilityKPIs').doc().id;
-      final model = AccountabilityKPIModel(
-        id: kpiId,
-        cycleId: _cycleId.text.trim(),
-        name: name,
-        target: target,
-        currentValue: current,
-        unit: _unit.text.trim().isEmpty ? null : _unit.text.trim(),
-        createdAt: Timestamp.now(),
-        updatedAt: Timestamp.now(),
-      );
-      await repo.upsert(model);
-      await AuditLogRepository().log(
-        AuditLogModel(
-          id: 'audit-kpi-$kpiId',
-          actorId: actorId,
-          actorRole: 'hq',
-          action: 'kpi.upsert',
-          entityType: 'accountabilityKPI',
-          entityId: kpiId,
-          siteId: null,
-          details: {'cycleId': model.cycleId, 'name': model.name},
-          createdAt: Timestamp.now(),
-        ),
-      );
-      if (mounted) {
-        _toast(context, 'KPI saved');
-      }
-    } finally {
-      if (mounted) {
-        setState(() => _saving = false);
-      }
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return _GlassCard(
-      title: 'HQ KPI (online)',
-      subtitle: 'Record network metrics for analytics.',
-      child: Column(
-        children: [
-          _TextField(controller: _cycleId, label: 'Cycle ID', hint: 'network-fy'),
-          const SizedBox(height: 8),
-          _TextField(controller: _name, label: 'KPI name', hint: 'Active learners'),
-          const SizedBox(height: 8),
-          _TextField(controller: _target, label: 'Target', hint: '100'),
-          const SizedBox(height: 8),
-          _TextField(controller: _current, label: 'Current value', hint: '42'),
-          const SizedBox(height: 8),
-          _TextField(controller: _unit, label: 'Unit (optional)', hint: 'learners'),
-          const SizedBox(height: 12),
-          SizedBox(
-            width: double.infinity,
-            child: ElevatedButton.icon(
-              icon: const Icon(Icons.insights, color: Colors.white),
-              label: Text(_saving ? 'Saving...' : 'Save KPI'),
-              onPressed: _saving ? null : _save,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _GlassCard extends StatelessWidget {
-  const _GlassCard({required this.title, required this.subtitle, required this.child});
-
-  final String title;
-  final String subtitle;
-  final Widget child;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.06),
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
-        boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.35), blurRadius: 24, offset: const Offset(0, 12))],
-        gradient: const LinearGradient(colors: [Color(0xFF0F172A), Color(0xFF111827)], begin: Alignment.topLeft, end: Alignment.bottomRight),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(title, style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w800)),
-          const SizedBox(height: 4),
-          Text(subtitle, style: const TextStyle(color: Colors.white70)),
-          const SizedBox(height: 12),
-          child,
-        ],
-      ),
-    );
-  }
-}
-
-class _TextField extends StatelessWidget {
-  const _TextField({required this.controller, required this.label, this.hint});
-
-  final TextEditingController controller;
   final String label;
-  final String? hint;
+  final TextEditingController controller;
+  final String hint;
+  final void Function(String value)? onChanged;
 
   @override
   Widget build(BuildContext context) {
     return TextField(
       controller: controller,
-      style: const TextStyle(color: Colors.white),
-      decoration: _inputDecoration(label).copyWith(hintText: hint, hintStyle: const TextStyle(color: Colors.white54)),
-    );
-  }
-}
-
-InputDecoration _inputDecoration(String label) {
-  return InputDecoration(
-    labelText: label,
-    labelStyle: const TextStyle(color: Colors.white70),
-    filled: true,
-    fillColor: Colors.white.withValues(alpha: 0.05),
-    enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: Colors.white24)),
-    focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: Color(0xFF38BDF8))),
-  );
-}
-
-List<String> _splitCodes(String raw) {
-  return raw
-      .split(RegExp('[,\\s]+'))
-      .map((String value) => value.trim())
-      .where((String value) => value.isNotEmpty)
-      .toList();
-}
-
-void _toast(BuildContext context, String message) {
-  ScaffoldMessenger.of(context).showSnackBar(
-    SnackBar(
-      content: Text(message),
-      behavior: SnackBarBehavior.floating,
-      backgroundColor: const Color(0xFF38BDF8),
-    ),
-  );
-}
-
-class DashboardItem {
-  const DashboardItem({required this.title, this.subtitle});
-
-  final String title;
-  final String? subtitle;
-}
-
-class DashboardDataList extends StatelessWidget {
-  const DashboardDataList({super.key, required this.role, this.siteId});
-
-  final String role;
-  final String? siteId;
-
-  @override
-  Widget build(BuildContext context) {
-    if (_siteScoped(role) && siteId == null) {
-      return const Padding(
-        padding: EdgeInsets.symmetric(vertical: 12),
-        child: Text('No site selected. Ask your site lead to assign a site.'),
-      );
-    }
-    return FutureBuilder<List<DashboardItem>>(
-      future: _loadItems(role, siteId),
-      builder: (context, snapshot) {
-        if (snapshot.connectionState == ConnectionState.waiting) {
-          return const Padding(
-            padding: EdgeInsets.symmetric(vertical: 12),
-            child: Center(child: CircularProgressIndicator()),
-          );
-        }
-        final items = snapshot.data ?? const <DashboardItem>[];
-        if (items.isEmpty) {
-          return const SizedBox.shrink();
-        }
-        return Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: items
-              .map(
-                (DashboardItem item) => Container(
-                  margin: const EdgeInsets.only(bottom: 10),
-                  decoration: BoxDecoration(
-                    color: Colors.white.withValues(alpha: 0.06),
-                    borderRadius: BorderRadius.circular(14),
-                    border: Border.all(color: Colors.white12),
-                    boxShadow: const [BoxShadow(color: Colors.black26, blurRadius: 12, offset: Offset(0, 8))],
-                  ),
-                  child: ListTile(
-                    title: Text(item.title, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w700)),
-                    subtitle: item.subtitle != null
-                        ? Text(item.subtitle!, style: const TextStyle(color: Colors.white70))
-                        : null,
-                    trailing: const Icon(Icons.chevron_right, color: Colors.white54),
-                  ),
-                ),
-              )
-              .toList(),
-        );
-      },
-    );
-  }
-
-  Future<List<DashboardItem>> _loadItems(String role, String? siteId) async {
-    try {
-      switch (role) {
-        case 'educator':
-          return _fetchCollection('sessions', siteId: siteId, titleField: 'title', subtitleField: 'pillarCodes');
-        case 'learner':
-          return _fetchCollection('missions', titleField: 'title', subtitleField: 'pillarCodes');
-        case 'parent':
-          return _fetchCollection('portfolioItems', titleField: 'title', subtitleField: 'description');
-        case 'site':
-          return _fetchCollection('sessions', siteId: siteId, titleField: 'title', subtitleField: 'startDate');
-        case 'partner':
-          return _fetchCollection('contracts', titleField: 'title', subtitleField: 'status');
-        case 'hq':
-          return _fetchCollection('missions', titleField: 'title', subtitleField: 'difficulty');
-        default:
-          return _fetchCollection('missions', titleField: 'title', subtitleField: 'pillarCodes');
-      }
-    } catch (_) {
-      return _fallbackItems(role);
-    }
-  }
-
-  Future<List<DashboardItem>> _fetchCollection(
-    String collection, {
-    String? siteId,
-    required String titleField,
-    String? subtitleField,
-  }) async {
-    Query<Map<String, dynamic>> query = FirebaseFirestore.instance.collection(collection).limit(3);
-    if (siteId != null) {
-      query = query.where('siteId', isEqualTo: siteId);
-    }
-    final snap = await query.get();
-    if (snap.docs.isEmpty) return _fallbackItems(role);
-    return snap.docs.map((QueryDocumentSnapshot<Map<String, dynamic>> doc) {
-      final data = doc.data();
-      final title = (data[titleField] as String?) ?? 'Untitled';
-      final subtitleValue = data[subtitleField];
-      final subtitle = _formatSubtitle(subtitleValue);
-      return DashboardItem(title: title, subtitle: subtitle);
-    }).toList();
-  }
-
-  List<DashboardItem> _fallbackItems(String role) {
-    final base = <DashboardItem>[
-      DashboardItem(title: 'Getting started', subtitle: 'No records yet. Create your first item.'),
-    ];
-    switch (role) {
-      case 'educator':
-        return <DashboardItem>[...base, const DashboardItem(title: 'Create a session roster', subtitle: 'Add learners to today’s class')];
-      case 'learner':
-        return <DashboardItem>[...base, const DashboardItem(title: 'Pick a mission', subtitle: 'Start with a Future Skills challenge')];
-      case 'parent':
-        return <DashboardItem>[...base, const DashboardItem(title: 'Link to your learner', subtitle: 'Request access from the site lead')];
-      case 'site':
-        return <DashboardItem>[...base, const DashboardItem(title: 'Review attendance', subtitle: 'Monitor daily presence')];
-      case 'partner':
-        return <DashboardItem>[...base, const DashboardItem(title: 'Submit deliverables', subtitle: 'Upload artifacts for review')];
-      case 'hq':
-        return <DashboardItem>[...base, const DashboardItem(title: 'Monitor KPIs', subtitle: 'Check network health')];
-      default:
-        return base;
-    }
-  }
-
-  String? _formatSubtitle(dynamic value) {
-    if (value == null) return null;
-    if (value is List) {
-      return value.whereType<String>().join(' • ');
-    }
-    if (value is String) return value;
-    if (value is num) return value.toString();
-    return null;
-  }
-
-  bool _siteScoped(String role) => role == 'educator' || role == 'site';
-}
-
-class DashboardCard {
-  const DashboardCard({required this.title, required this.description, required this.pillar});
-
-  final String title;
-  final String description;
-  final String pillar;
-}
-
-class DashboardCardView extends StatelessWidget {
-  const DashboardCardView({super.key, required this.card});
-
-  final DashboardCard card;
-
-  @override
-  Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
-    return Card(
-      color: Colors.white.withValues(alpha: 0.06),
-      margin: const EdgeInsets.only(bottom: 12),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14), side: const BorderSide(color: Colors.white12)),
-      elevation: 0,
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: <Widget>[
-            Text(card.title, style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w800)),
-            const SizedBox(height: 6),
-            Text(card.description, style: const TextStyle(color: Colors.white70)),
-            const SizedBox(height: 10),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-              decoration: BoxDecoration(
-                gradient: const LinearGradient(colors: [Color(0xFF38BDF8), Color(0xFF6366F1)]),
-                borderRadius: BorderRadius.circular(10),
-              ),
-              child: Text(
-                card.pillar,
-                style: TextStyle(color: scheme.onSecondaryContainer, fontWeight: FontWeight.w700),
-              ),
-            ),
-          ],
-        ),
+      onChanged: onChanged,
+      decoration: InputDecoration(
+        labelText: label,
+        hintText: hint,
+        border: const OutlineInputBorder(),
       ),
     );
   }
 }
 
-class _Dot extends StatelessWidget {
-  const _Dot({required this.color});
+String _buildId(String prefix, String? uid) {
+  final ts = DateTime.now().millisecondsSinceEpoch;
+  return '$prefix-$ts-${uid ?? 'anon'}';
+}
 
-  final Color color;
+class _AnnouncementCard extends StatefulWidget {
+  const _AnnouncementCard({required this.role});
+
+  final String role;
+
+  @override
+  State<_AnnouncementCard> createState() => _AnnouncementCardState();
+}
+
+class _AnnouncementCardState extends State<_AnnouncementCard> {
+  final _siteId = TextEditingController();
+  final _repo = AnnouncementRepository();
+  List<AnnouncementModel> _items = <AnnouncementModel>[];
+  bool _loading = false;
+  DateTime? _lastSeen;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadLastSeen();
+  }
+
+  @override
+  void dispose() {
+    _siteId.dispose();
+    super.dispose();
+  }
+
+  Future<void> _loadLastSeen() async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) return;
+    final prefs = await SharedPreferences.getInstance();
+    final ts = prefs.getString('announcements:lastSeen:${user.uid}');
+    if (ts == null) return;
+    setState(() => _lastSeen = DateTime.tryParse(ts)?.toUtc());
+  }
+
+  Future<void> _load() async {
+    final siteId = _siteId.text.trim();
+    if (siteId.isEmpty) {
+      _toast('Enter site ID');
+      return;
+    }
+    setState(() => _loading = true);
+    try {
+      final items = await _repo.listBySiteAndRole(siteId: siteId, role: widget.role);
+      if (!mounted) return;
+      setState(() => _items = items);
+    } finally {
+      if (mounted) setState(() => _loading = false);
+    }
+  }
+
+  Future<void> _markAllRead() async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) return;
+    final now = DateTime.now().toUtc();
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString('announcements:lastSeen:${user.uid}', now.toIso8601String());
+    if (!mounted) return;
+    setState(() => _lastSeen = now);
+  }
+
+  void _toast(String msg) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
+  }
+
+  int _unreadCount() {
+    if (_lastSeen == null) return _items.length;
+    return _items.where((a) {
+      final ts = a.publishedAt ?? a.createdAt;
+      final dt = ts?.toDate().toUtc();
+      return dt != null && dt.isAfter(_lastSeen!);
+    }).length;
+  }
 
   @override
   Widget build(BuildContext context) {
+    final offline = context.watch<OfflineService>().isOffline;
+    final unread = _unreadCount();
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(12),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            _LabeledField(label: 'Site ID', controller: _siteId, hint: 'site-123'),
+            const SizedBox(height: 8),
+            Row(
+              children: [
+                ElevatedButton.icon(
+                  onPressed: _loading || offline ? null : _load,
+                  icon: _loading
+                      ? const SizedBox(height: 16, width: 16, child: CircularProgressIndicator(strokeWidth: 2))
+                      : const Icon(Icons.refresh),
+                  label: Text(_loading ? 'Loading...' : 'Load announcements'),
+                ),
+                const SizedBox(width: 8),
+                TextButton.icon(
+                  onPressed: _items.isEmpty ? null : _markAllRead,
+                  icon: const Icon(Icons.done_all),
+                  label: const Text('Mark all read'),
+                ),
+                const Spacer(),
+                if (offline)
+                  const Row(
+                    children: [
+                      Icon(Icons.wifi_off, color: Colors.redAccent),
+                      SizedBox(width: 4),
+                      Text('Offline', style: TextStyle(color: Colors.redAccent)),
+                    ],
+                  ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            Text(unread > 0 ? '$unread unread' : 'All caught up'),
+            const SizedBox(height: 8),
+            if (_items.isEmpty)
+              const Text('No announcements loaded yet.')
+            else
+              ListView.separated(
+                shrinkWrap: true,
+                physics: const NeverScrollableScrollPhysics(),
+                itemCount: _items.length,
+                separatorBuilder: (_, i) => const Divider(height: 1),
+                itemBuilder: (context, index) {
+                  final a = _items[index];
+                  final ts = (a.publishedAt ?? a.createdAt)?.toDate();
+                  final isUnread = _lastSeen == null
+                      ? true
+                      : (ts != null && ts.toUtc().isAfter(_lastSeen!));
+                  return ListTile(
+                    leading: Icon(isUnread ? Icons.markunread : Icons.drafts),
+                    title: Text(a.title),
+                    subtitle: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(a.body),
+                        if (ts != null)
+                          Text(
+                            _fmt(ts),
+                            style: const TextStyle(fontSize: 12, color: Colors.black54),
+                          ),
+                      ],
+                    ),
+                    trailing: Chip(
+                      label: Text(a.roles.join(',')),
+                    ),
+                  );
+                },
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  String _fmt(DateTime dt) {
+    final local = dt.toLocal();
+    final y = local.year.toString();
+    final m = local.month.toString().padLeft(2, '0');
+    final d = local.day.toString().padLeft(2, '0');
+    final h = local.hour.toString().padLeft(2, '0');
+    final min = local.minute.toString().padLeft(2, '0');
+    return '$y-$m-$d $h:$min';
+  }
+}
+
+class _KpiCard extends StatefulWidget {
+  const _KpiCard({required this.role});
+
+  final String role;
+
+  @override
+  State<_KpiCard> createState() => _KpiCardState();
+}
+
+class _KpiCardState extends State<_KpiCard> {
+  final _repo = AccountabilityKPIRepository();
+  List<AccountabilityKPIModel> _items = <AccountabilityKPIModel>[];
+  bool _loading = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  Future<void> _load() async {
+    setState(() => _loading = true);
+    try {
+      final items = await _repo.listRecent(limit: 6);
+      if (!mounted) return;
+      setState(() => _items = items);
+    } finally {
+      if (mounted) setState(() => _loading = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(12),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Text(widget.role == 'hq' ? 'Network KPIs' : 'Site KPIs',
+                    style: Theme.of(context).textTheme.titleMedium),
+                const Spacer(),
+                IconButton(
+                  tooltip: 'Refresh',
+                  onPressed: _loading ? null : _load,
+                  icon: _loading
+                      ? const SizedBox(height: 16, width: 16, child: CircularProgressIndicator(strokeWidth: 2))
+                      : const Icon(Icons.refresh),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            if (_loading)
+              const Center(
+                child: SizedBox(height: 24, width: 24, child: CircularProgressIndicator(strokeWidth: 2)),
+              )
+            else if (_items.isEmpty)
+              const Text('No KPIs yet.')
+            else
+              Wrap(
+                spacing: 10,
+                runSpacing: 10,
+                children: _items.map(_buildChip).toList(),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildChip(AccountabilityKPIModel kpi) {
+    final target = kpi.target == 0 ? 1 : kpi.target;
+    final pct = (kpi.currentValue / target).clamp(0, 1).toDouble();
+    final onTrack = pct >= 1;
     return Container(
-      height: 10,
-      width: 10,
-      decoration: BoxDecoration(color: color, shape: BoxShape.circle, boxShadow: [BoxShadow(color: color.withValues(alpha: 0.5), blurRadius: 8)]),
+      width: 200,
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.grey.shade300),
+        boxShadow: [
+          BoxShadow(color: Colors.black.withValues(alpha: 0.05), blurRadius: 8, offset: const Offset(0, 4)),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: Text(kpi.name, style: const TextStyle(fontWeight: FontWeight.w700)),
+              ),
+              Chip(
+                backgroundColor: onTrack ? Colors.green.shade100 : Colors.blue.shade100,
+                label: Text(onTrack ? 'On track' : '${(pct * 100).round()}%'),
+                padding: EdgeInsets.zero,
+              ),
+            ],
+          ),
+          const SizedBox(height: 4),
+          Text('${kpi.currentValue}${kpi.unit != null ? ' ${kpi.unit}' : ''} / ${kpi.target}',
+              style: const TextStyle(fontSize: 12, color: Colors.black54)),
+          const SizedBox(height: 8),
+          ClipRRect(
+            borderRadius: BorderRadius.circular(6),
+            child: LinearProgressIndicator(
+              minHeight: 8,
+              value: pct,
+              backgroundColor: Colors.grey.shade200,
+              valueColor: AlwaysStoppedAnimation<Color>(onTrack ? Colors.green : Colors.blue),
+            ),
+          ),
+        ],
+      ),
     );
   }
 }

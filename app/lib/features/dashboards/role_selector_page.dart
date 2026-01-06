@@ -35,6 +35,8 @@ class _RoleSelectorPageState extends State<RoleSelectorPage> {
   @override
   Widget build(BuildContext context) {
     final entitlements = context.watch<AppState>().entitlements;
+    final normalizedEntitlements = entitlements.map(normalizeRole).toSet();
+    final hasSuperuser = normalizedEntitlements.contains('superuser');
     return Scaffold(
       body: Container(
         decoration: const BoxDecoration(
@@ -67,7 +69,7 @@ class _RoleSelectorPageState extends State<RoleSelectorPage> {
                     crossAxisSpacing: 12,
                     childAspectRatio: 1.1,
                     children: roles.entries.map((MapEntry<String, String> entry) {
-                      final enabled = entitlements.contains(entry.key);
+                      final enabled = hasSuperuser || normalizedEntitlements.contains(entry.key);
                       return _RoleCard(
                         label: entry.value,
                         enabled: enabled,

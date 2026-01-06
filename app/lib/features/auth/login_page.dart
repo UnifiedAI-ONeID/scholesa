@@ -58,8 +58,12 @@ class _LoginPageState extends State<LoginPage> {
       await _updateLastLogin(user);
       if (!mounted) return;
       final ent = appState.entitlements;
-      if (ent.length == 1) {
-        final role = ent.first;
+      final normalizedEnt = ent.map(normalizeRole).toSet();
+      final hasSuperuser = normalizedEnt.contains('superuser');
+      final selectableRoles = normalizedEnt.where((role) => role != 'superuser').toSet();
+
+      if (selectableRoles.length == 1 || (selectableRoles.isEmpty && hasSuperuser)) {
+        final role = selectableRoles.isNotEmpty ? selectableRoles.first : 'hq';
         appState.setRole(role);
         Navigator.pushReplacementNamed(context, dashboardRouteFor(role));
       } else {
