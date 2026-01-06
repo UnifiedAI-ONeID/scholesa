@@ -80,8 +80,9 @@ class _RoleSelectorPageState extends State<RoleSelectorPage> {
                             );
                             return;
                           }
-                          context.read<AppState>().setRole(entry.key);
-                          Navigator.pushNamed(context, dashboardRouteFor(entry.key));
+                          final normalized = normalizeRole(entry.key);
+                          context.read<AppState>().setRole(normalized);
+                          Navigator.pushReplacementNamed(context, dashboardRouteFor(normalized));
                         },
                       );
                     }).toList(),
