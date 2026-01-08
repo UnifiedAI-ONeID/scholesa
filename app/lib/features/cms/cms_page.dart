@@ -28,7 +28,7 @@ class _CmsPageScreenState extends State<CmsPageScreen> {
   Future<CmsPageModel?> _load() async {
     final repo = CmsRepository();
     final appState = context.read<AppState>();
-    final role = appState.profile?.role;
+    final role = appState.role;
     final page = await repo.fetchPublishedBySlug(slug: widget.slug, role: role);
     if (page != null) {
       TelemetryService.instance.logEvent(
@@ -96,7 +96,7 @@ class _PageContent extends StatelessWidget {
             ),
           ],
           const SizedBox(height: 24),
-          ...page.blocks.map((block) => _Block(block: block)).toList(),
+          ...page.blocks.map((block) => _Block(block: block)),
           const SizedBox(height: 28),
           LeadCaptureCard(source: 'cms', slug: page.slug),
         ],

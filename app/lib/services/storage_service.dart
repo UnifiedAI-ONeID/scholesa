@@ -3,6 +3,7 @@ import 'dart:typed_data';
 import 'package:file_picker/file_picker.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'package:flutter/foundation.dart';
+import 'package:mime/mime.dart';
 
 class StorageService {
   StorageService._();
@@ -18,7 +19,8 @@ class StorageService {
     final sanitizedName = file.name.replaceAll(RegExp(r'[^a-zA-Z0-9_\.\-]'), '_');
     final path = 'partnerDeliverables/$contractId/${DateTime.now().millisecondsSinceEpoch}-$sanitizedName';
     final ref = FirebaseStorage.instance.ref().child(path);
-    final metadata = SettableMetadata(contentType: file.mimeType ?? 'application/octet-stream');
+    final contentType = lookupMimeType(file.name, headerBytes: bytes.length >= 12 ? bytes.sublist(0, 12) : bytes) ?? 'application/octet-stream';
+    final metadata = SettableMetadata(contentType: contentType);
     final task = ref.putData(bytes, metadata);
     final snapshot = await task.whenComplete(() {});
     return snapshot.ref.getDownloadURL();
@@ -33,7 +35,8 @@ class StorageService {
     final sanitizedName = file.name.replaceAll(RegExp(r'[^a-zA-Z0-9_\.\-]'), '_');
     final path = 'notificationUploads/$threadId/${DateTime.now().millisecondsSinceEpoch}-$sanitizedName';
     final ref = FirebaseStorage.instance.ref().child(path);
-    final metadata = SettableMetadata(contentType: file.mimeType ?? 'application/octet-stream');
+    final contentType = lookupMimeType(file.name, headerBytes: bytes.length >= 12 ? bytes.sublist(0, 12) : bytes) ?? 'application/octet-stream';
+    final metadata = SettableMetadata(contentType: contentType);
     final task = ref.putData(bytes, metadata);
     final snapshot = await task.whenComplete(() {});
     return snapshot.ref.getDownloadURL();
