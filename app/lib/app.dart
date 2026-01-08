@@ -8,6 +8,7 @@ import 'features/auth/register_page.dart';
 import 'features/landing/landing_page.dart';
 import 'features/dashboards/role_dashboards.dart';
 import 'features/dashboards/role_selector_page.dart';
+import 'features/cms/cms_page.dart';
 import 'features/offline/offline_banner.dart';
 import 'features/offline/offline_dispatchers.dart';
 import 'features/offline/offline_queue.dart';
@@ -44,6 +45,20 @@ class ScholesaApp extends StatelessWidget {
           } else {
             appState.clearAuth();
           }
+
+          final routes = <String, WidgetBuilder>{
+            '/': (context) => const LandingPage(),
+            '/login': (context) => const LoginPage(),
+            '/register': (context) => const RegisterPage(),
+            '/roles': (context) => const RoleSelectorPage(),
+            '/dashboard/learner': (context) => const RoleDashboard(role: 'learner'),
+            '/dashboard/educator': (context) => const RoleDashboard(role: 'educator'),
+            '/dashboard/parent': (context) => const RoleDashboard(role: 'parent'),
+            '/dashboard/site': (context) => const RoleDashboard(role: 'site'),
+            '/dashboard/partner': (context) => const RoleDashboard(role: 'partner'),
+            '/dashboard/hq': (context) => const RoleDashboard(role: 'hq'),
+          };
+
           return MaterialApp(
             title: 'Scholesa EDU',
             theme: AppTheme.light(),
@@ -51,17 +66,18 @@ class ScholesaApp extends StatelessWidget {
             builder: (context, child) => OfflineBanner(
               child: child ?? const SizedBox.shrink(),
             ),
-            routes: <String, WidgetBuilder>{
-              '/': (context) => const LandingPage(),
-              '/login': (context) => const LoginPage(),
-              '/register': (context) => const RegisterPage(),
-              '/roles': (context) => const RoleSelectorPage(),
-              '/dashboard/learner': (context) => const RoleDashboard(role: 'learner'),
-              '/dashboard/educator': (context) => const RoleDashboard(role: 'educator'),
-              '/dashboard/parent': (context) => const RoleDashboard(role: 'parent'),
-              '/dashboard/site': (context) => const RoleDashboard(role: 'site'),
-              '/dashboard/partner': (context) => const RoleDashboard(role: 'partner'),
-              '/dashboard/hq': (context) => const RoleDashboard(role: 'hq'),
+            routes: routes,
+            onGenerateRoute: (settings) {
+              final name = settings.name ?? '/';
+              if (name.startsWith('/p/')) {
+                final slug = name.substring(3);
+                return MaterialPageRoute(builder: (_) => CmsPageScreen(slug: slug));
+              }
+              final builder = routes[name];
+              if (builder != null) {
+                return MaterialPageRoute(builder: builder);
+              }
+              return MaterialPageRoute(builder: (_) => const LandingPage());
             },
           );
         },

@@ -3,6 +3,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 
 import '../../domain/models.dart';
 import '../../domain/repositories.dart';
+import '../../services/telemetry_service.dart';
 import 'offline_queue.dart';
 
 /// Registers dispatchers that persist queued actions when back online.
@@ -12,11 +13,43 @@ void registerOfflineDispatchers(OfflineQueue queue) {
   final portfolioItemRepository = PortfolioItemRepository();
   final credentialRepository = CredentialRepository();
   final auditLogRepository = AuditLogRepository();
+  final leadRepository = LeadRepository();
+  final messageRepository = MessageRepository();
 
   queue.registerDispatcher('demo', (action) async {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) return false;
     return _write('offlineDemoActions', user.uid, action);
+  });
+
+  queue.registerDispatcher('lead', (action) async {
+    final payload = action.payload;
+    final String? name = _string(payload, 'name');
+    final String? email = _string(payload, 'email');
+    if (name == null || name.isEmpty || email == null || email.isEmpty) {
+      return false;
+    }
+    final String source = _string(payload, 'source') ?? 'unknown';
+    try {
+      await leadRepository.createLead(
+        name: name,
+        email: email,
+        source: source,
+        message: _string(payload, 'message'),
+        siteId: _string(payload, 'siteId'),
+        slug: _string(payload, 'slug'),
+      );
+      await TelemetryService.instance.logEvent(
+        event: 'lead.submitted',
+        metadata: {
+          'source': source,
+          if (_string(payload, 'slug') != null) 'slug': _string(payload, 'slug'),
+        },
+      );
+      return true;
+    } catch (_) {
+      return false;
+    }
   });
 
   queue.registerDispatcher('attendance', (action) async {
@@ -64,6 +97,20 @@ void registerOfflineDispatchers(OfflineQueue queue) {
           createdAt: Timestamp.now(),
         ),
       );
+      try {
+        await TelemetryService.instance.logEvent(
+          event: 'attendance.recorded',
+          role: _string(payload, 'actorRole') ?? 'educator',
+          siteId: siteId,
+          metadata: {
+            'sessionOccurrenceId': sessionOccurrenceId,
+            'learnerId': learnerId,
+            'status': status,
+          },
+        );
+      } catch (_) {
+        // Best-effort telemetry; do not fail dispatch.
+      }
       return true;
     } catch (_) {
       return false;
@@ -115,6 +162,20 @@ void registerOfflineDispatchers(OfflineQueue queue) {
           createdAt: Timestamp.now(),
         ),
       );
+      try {
+        await TelemetryService.instance.logEvent(
+          event: 'mission.attempt.submitted',
+          role: _string(payload, 'actorRole') ?? 'learner',
+          siteId: siteId,
+          metadata: {
+            'missionId': missionId,
+            'learnerId': learnerId,
+            'status': status,
+          },
+        );
+      } catch (_) {
+        // Best-effort telemetry; do not fail dispatch.
+      }
       return true;
     } catch (_) {
       return false;
@@ -212,6 +273,41 @@ void registerOfflineDispatchers(OfflineQueue queue) {
           createdAt: Timestamp.now(),
         ),
       );
+      return true;
+    } catch (_) {
+      return false;
+    }
+  });
+
+  // Messaging drafts are allowed offline only for in-app delivery (no external notification).
+  queue.registerDispatcher('message', (action) async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) return false;
+    final payload = action.payload;
+    final String? siteId = _string(payload, 'siteId');
+    final String? threadId = _string(payload, 'threadId');
+    final String? body = _string(payload, 'body');
+    final String role = _string(payload, 'role') ?? 'learner';
+    if ([siteId, threadId, body].any((v) => v == null || v.isEmpty)) return false;
+    final model = MessageModel(
+      id: action.id,
+      threadId: threadId!,
+      siteId: siteId!,
+      senderId: user.uid,
+      senderRole: role,
+      body: body!,
+      createdAt: Timestamp.fromDate(action.createdAt),
+    );
+    try {
+      await messageRepository.add(model);
+      try {
+        await TelemetryService.instance.logEvent(
+          event: 'message.sent',
+          role: role,
+          siteId: siteId,
+          metadata: {'threadId': threadId, 'length': body.length, 'offline': true},
+        );
+      } catch (_) {}
       return true;
     } catch (_) {
       return false;

@@ -1118,6 +1118,564 @@ class AnnouncementModel {
 }
 
 @immutable
+class MessageThreadModel {
+  const MessageThreadModel({
+    required this.id,
+    required this.siteId,
+    required this.participantIds,
+    this.subject,
+    this.createdAt,
+  });
+
+  final String id;
+  final String siteId;
+  final List<String> participantIds;
+  final String? subject;
+  final Timestamp? createdAt;
+
+  factory MessageThreadModel.fromDoc(DocumentSnapshot<Map<String, dynamic>> doc) {
+    final data = doc.data() ?? <String, dynamic>{};
+    return MessageThreadModel(
+      id: doc.id,
+      siteId: data['siteId'] as String? ?? '',
+      participantIds: List<String>.from(data['participantIds'] as List? ?? const <String>[]),
+      subject: data['subject'] as String?,
+      createdAt: data['createdAt'] as Timestamp?,
+    );
+  }
+
+  Map<String, dynamic> toMap() => <String, dynamic>{
+        'siteId': siteId,
+        'participantIds': participantIds,
+        'subject': subject,
+        'createdAt': createdAt ?? Timestamp.now(),
+      };
+}
+
+@immutable
+class MessageModel {
+  const MessageModel({
+    required this.id,
+    required this.threadId,
+    required this.siteId,
+    required this.senderId,
+    required this.senderRole,
+    required this.body,
+    this.createdAt,
+  });
+
+  final String id;
+  final String threadId;
+  final String siteId;
+  final String senderId;
+  final String senderRole;
+  final String body;
+  final Timestamp? createdAt;
+
+  factory MessageModel.fromDoc(DocumentSnapshot<Map<String, dynamic>> doc) {
+    final data = doc.data() ?? <String, dynamic>{};
+    return MessageModel(
+      id: doc.id,
+      threadId: data['threadId'] as String? ?? '',
+      siteId: data['siteId'] as String? ?? '',
+      senderId: data['senderId'] as String? ?? '',
+      senderRole: data['senderRole'] as String? ?? '',
+      body: data['body'] as String? ?? '',
+      createdAt: data['createdAt'] as Timestamp?,
+    );
+  }
+
+  Map<String, dynamic> toMap() => <String, dynamic>{
+        'threadId': threadId,
+        'siteId': siteId,
+        'senderId': senderId,
+        'senderRole': senderRole,
+        'body': body,
+        'createdAt': createdAt ?? Timestamp.now(),
+      };
+}
+
+@immutable
+class CmsBlockModel {
+  const CmsBlockModel({
+    required this.type,
+    this.title,
+    this.body,
+    this.bullets = const <String>[],
+    this.imageUrl,
+  });
+
+  final String type;
+  final String? title;
+  final String? body;
+  final List<String> bullets;
+  final String? imageUrl;
+
+  factory CmsBlockModel.fromMap(Map<String, dynamic> data) {
+    return CmsBlockModel(
+      type: data['type'] as String? ?? 'section',
+      title: data['title'] as String?,
+      body: data['body'] as String?,
+      bullets: (data['bullets'] as List?)?.whereType<String>().toList() ?? const <String>[],
+      imageUrl: data['imageUrl'] as String?,
+    );
+  }
+}
+
+@immutable
+class CmsPageModel {
+  const CmsPageModel({
+    required this.slug,
+    required this.title,
+    required this.status,
+    required this.audience,
+    this.heroTitle,
+    this.heroSubtitle,
+    this.blocks = const <CmsBlockModel>[],
+    this.updatedAt,
+  });
+
+  final String slug;
+  final String title;
+  final String status;
+  final String audience;
+  final String? heroTitle;
+  final String? heroSubtitle;
+  final List<CmsBlockModel> blocks;
+  final Timestamp? updatedAt;
+
+  factory CmsPageModel.fromDoc(DocumentSnapshot<Map<String, dynamic>> doc) {
+    final data = doc.data() ?? <String, dynamic>{};
+    final List<dynamic> rawBlocks = data['bodyJson'] as List<dynamic>? ?? const <dynamic>[];
+    return CmsPageModel(
+      slug: data['slug'] as String? ?? doc.id,
+      title: data['title'] as String? ?? (doc.id.isNotEmpty ? doc.id : 'Page'),
+      status: data['status'] as String? ?? 'draft',
+      audience: data['audience'] as String? ?? 'public',
+      heroTitle: data['heroTitle'] as String?,
+      heroSubtitle: data['heroSubtitle'] as String?,
+      blocks: rawBlocks
+          .whereType<Map<String, dynamic>>()
+          .map((Map<String, dynamic> block) => CmsBlockModel.fromMap(block))
+          .toList(),
+      updatedAt: data['updatedAt'] as Timestamp?,
+    );
+  }
+}
+
+@immutable
+class LeadModel {
+  const LeadModel({
+    required this.id,
+    required this.name,
+    required this.email,
+    required this.source,
+    this.status = 'new',
+    this.message,
+    this.siteId,
+    this.slug,
+    this.createdAt,
+  });
+
+  final String id;
+  final String name;
+  final String email;
+  final String source;
+  final String status;
+  final String? message;
+  final String? siteId;
+  final String? slug;
+  final Timestamp? createdAt;
+
+  factory LeadModel.fromDoc(DocumentSnapshot<Map<String, dynamic>> doc) {
+    final data = doc.data() ?? <String, dynamic>{};
+    return LeadModel(
+      id: doc.id,
+      name: data['name'] as String? ?? '',
+      email: data['email'] as String? ?? '',
+      source: data['source'] as String? ?? 'unknown',
+      status: data['status'] as String? ?? 'new',
+      message: data['message'] as String?,
+      siteId: data['siteId'] as String?,
+      slug: data['slug'] as String?,
+      createdAt: data['createdAt'] as Timestamp?,
+    );
+  }
+
+  Map<String, dynamic> toMap() => <String, dynamic>{
+        'name': name,
+        'email': email,
+        'source': source,
+        'status': status,
+        'message': message,
+        'siteId': siteId,
+        'slug': slug,
+        'createdAt': createdAt ?? Timestamp.now(),
+      };
+}
+
+@immutable
+class PartnerOrgModel {
+  const PartnerOrgModel({
+    required this.id,
+    required this.name,
+    required this.ownerId,
+    this.contactEmail,
+    this.status = 'active',
+    this.createdAt,
+  });
+
+  final String id;
+  final String name;
+  final String ownerId;
+  final String? contactEmail;
+  final String status;
+  final Timestamp? createdAt;
+
+  factory PartnerOrgModel.fromDoc(DocumentSnapshot<Map<String, dynamic>> doc) {
+    final data = doc.data() ?? <String, dynamic>{};
+    return PartnerOrgModel(
+      id: doc.id,
+      name: data['name'] as String? ?? '',
+      ownerId: data['ownerId'] as String? ?? '',
+      contactEmail: data['contactEmail'] as String?,
+      status: data['status'] as String? ?? 'active',
+      createdAt: data['createdAt'] as Timestamp?,
+    );
+  }
+
+  Map<String, dynamic> toMap() => <String, dynamic>{
+        'name': name,
+        'ownerId': ownerId,
+        'contactEmail': contactEmail,
+        'status': status,
+        'createdAt': createdAt ?? Timestamp.now(),
+      };
+}
+
+@immutable
+class PartnerContractModel {
+  const PartnerContractModel({
+    required this.id,
+    required this.partnerOrgId,
+    required this.title,
+    required this.amount,
+    required this.currency,
+    this.status = 'draft',
+    this.createdBy,
+    this.dueDate,
+    this.approvedBy,
+    this.approvedAt,
+    this.createdAt,
+  });
+
+  final String id;
+  final String partnerOrgId;
+  final String title;
+  final String amount;
+  final String currency;
+  final String status;
+  final String? createdBy;
+  final Timestamp? dueDate;
+  final String? approvedBy;
+  final Timestamp? approvedAt;
+  final Timestamp? createdAt;
+
+  factory PartnerContractModel.fromDoc(DocumentSnapshot<Map<String, dynamic>> doc) {
+    final data = doc.data() ?? <String, dynamic>{};
+    return PartnerContractModel(
+      id: doc.id,
+      partnerOrgId: data['partnerOrgId'] as String? ?? '',
+      title: data['title'] as String? ?? '',
+      amount: data['amount'] as String? ?? '0',
+      currency: data['currency'] as String? ?? 'USD',
+      status: data['status'] as String? ?? 'draft',
+      createdBy: data['createdBy'] as String?,
+      dueDate: data['dueDate'] as Timestamp?,
+      approvedBy: data['approvedBy'] as String?,
+      approvedAt: data['approvedAt'] as Timestamp?,
+      createdAt: data['createdAt'] as Timestamp?,
+    );
+  }
+
+  Map<String, dynamic> toMap() => <String, dynamic>{
+        'partnerOrgId': partnerOrgId,
+        'title': title,
+        'amount': amount,
+        'currency': currency,
+        'status': status,
+        'createdBy': createdBy,
+        'dueDate': dueDate,
+        'approvedBy': approvedBy,
+        'approvedAt': approvedAt,
+        'createdAt': createdAt ?? Timestamp.now(),
+      };
+}
+
+@immutable
+class PartnerDeliverableModel {
+  const PartnerDeliverableModel({
+    required this.id,
+    required this.contractId,
+    required this.title,
+    this.description,
+    this.evidenceUrl,
+    this.status = 'submitted',
+    this.submittedBy,
+    this.submittedAt,
+    this.acceptedBy,
+    this.acceptedAt,
+  });
+
+  final String id;
+  final String contractId;
+  final String title;
+  final String? description;
+  final String? evidenceUrl;
+  final String status;
+  final String? submittedBy;
+  final Timestamp? submittedAt;
+  final String? acceptedBy;
+  final Timestamp? acceptedAt;
+
+  factory PartnerDeliverableModel.fromDoc(DocumentSnapshot<Map<String, dynamic>> doc) {
+    final data = doc.data() ?? <String, dynamic>{};
+    return PartnerDeliverableModel(
+      id: doc.id,
+      contractId: data['contractId'] as String? ?? '',
+      title: data['title'] as String? ?? '',
+      description: data['description'] as String?,
+      evidenceUrl: data['evidenceUrl'] as String?,
+      status: data['status'] as String? ?? 'submitted',
+      submittedBy: data['submittedBy'] as String?,
+      submittedAt: data['submittedAt'] as Timestamp?,
+      acceptedBy: data['acceptedBy'] as String?,
+      acceptedAt: data['acceptedAt'] as Timestamp?,
+    );
+  }
+
+  Map<String, dynamic> toMap() => <String, dynamic>{
+        'contractId': contractId,
+        'title': title,
+        'description': description,
+        'evidenceUrl': evidenceUrl,
+        'status': status,
+        'submittedBy': submittedBy,
+        'submittedAt': submittedAt ?? Timestamp.now(),
+        'acceptedBy': acceptedBy,
+        'acceptedAt': acceptedAt,
+      };
+}
+
+@immutable
+class PayoutModel {
+  const PayoutModel({
+    required this.id,
+    required this.contractId,
+    required this.amount,
+    required this.currency,
+    this.status = 'pending',
+    this.createdBy,
+    this.approvedBy,
+    this.approvedAt,
+    this.providerTransferId,
+    this.createdAt,
+  });
+
+  final String id;
+  final String contractId;
+  final String amount;
+  final String currency;
+  final String status;
+  final String? createdBy;
+  final String? approvedBy;
+  final Timestamp? approvedAt;
+  final String? providerTransferId;
+  final Timestamp? createdAt;
+
+  factory PayoutModel.fromDoc(DocumentSnapshot<Map<String, dynamic>> doc) {
+    final data = doc.data() ?? <String, dynamic>{};
+    return PayoutModel(
+      id: doc.id,
+      contractId: data['contractId'] as String? ?? '',
+      amount: data['amount'] as String? ?? '0',
+      currency: data['currency'] as String? ?? 'USD',
+      status: data['status'] as String? ?? 'pending',
+      createdBy: data['createdBy'] as String?,
+      approvedBy: data['approvedBy'] as String?,
+      approvedAt: data['approvedAt'] as Timestamp?,
+      providerTransferId: data['providerTransferId'] as String?,
+      createdAt: data['createdAt'] as Timestamp?,
+    );
+  }
+
+  Map<String, dynamic> toMap() => <String, dynamic>{
+        'contractId': contractId,
+        'amount': amount,
+        'currency': currency,
+        'status': status,
+        'createdBy': createdBy,
+        'approvedBy': approvedBy,
+        'approvedAt': approvedAt,
+        'providerTransferId': providerTransferId,
+        'createdAt': createdAt ?? Timestamp.now(),
+      };
+}
+
+@immutable
+class AiDraftModel {
+  const AiDraftModel({
+    required this.id,
+    required this.requesterId,
+    required this.siteId,
+    required this.title,
+    required this.prompt,
+    this.status = 'requested',
+    this.reviewerId,
+    this.reviewNotes,
+    this.createdAt,
+    this.updatedAt,
+  });
+
+  final String id;
+  final String requesterId;
+  final String siteId;
+  final String title;
+  final String prompt;
+  final String status;
+  final String? reviewerId;
+  final String? reviewNotes;
+  final Timestamp? createdAt;
+  final Timestamp? updatedAt;
+
+  factory AiDraftModel.fromDoc(DocumentSnapshot<Map<String, dynamic>> doc) {
+    final data = doc.data() ?? <String, dynamic>{};
+    return AiDraftModel(
+      id: doc.id,
+      requesterId: data['requesterId'] as String? ?? '',
+      siteId: data['siteId'] as String? ?? '',
+      title: data['title'] as String? ?? '',
+      prompt: data['prompt'] as String? ?? '',
+      status: data['status'] as String? ?? 'requested',
+      reviewerId: data['reviewerId'] as String?,
+      reviewNotes: data['reviewNotes'] as String?,
+      createdAt: data['createdAt'] as Timestamp?,
+      updatedAt: data['updatedAt'] as Timestamp?,
+    );
+  }
+
+  Map<String, dynamic> toMap() => <String, dynamic>{
+        'requesterId': requesterId,
+        'siteId': siteId,
+        'title': title,
+        'prompt': prompt,
+        'status': status,
+        'reviewerId': reviewerId,
+        'reviewNotes': reviewNotes,
+        'createdAt': createdAt ?? Timestamp.now(),
+        'updatedAt': updatedAt ?? Timestamp.now(),
+      };
+}
+
+@immutable
+class OrderModel {
+  const OrderModel({
+    required this.id,
+    required this.siteId,
+    required this.userId,
+    required this.productId,
+    required this.amount,
+    required this.currency,
+    this.status = 'paid',
+    this.entitlementRoles = const <String>[],
+    this.createdAt,
+    this.paidAt,
+  });
+
+  final String id;
+  final String siteId;
+  final String userId;
+  final String productId;
+  final String amount;
+  final String currency;
+  final String status;
+  final List<String> entitlementRoles;
+  final Timestamp? createdAt;
+  final Timestamp? paidAt;
+
+  factory OrderModel.fromDoc(DocumentSnapshot<Map<String, dynamic>> doc) {
+    final data = doc.data() ?? <String, dynamic>{};
+    return OrderModel(
+      id: doc.id,
+      siteId: data['siteId'] as String? ?? '',
+      userId: data['userId'] as String? ?? '',
+      productId: data['productId'] as String? ?? '',
+      amount: data['amount'] as String? ?? '0',
+      currency: data['currency'] as String? ?? 'USD',
+      status: data['status'] as String? ?? 'paid',
+      entitlementRoles: List<String>.from(data['entitlementRoles'] as List? ?? const <String>[]),
+      createdAt: data['createdAt'] as Timestamp?,
+      paidAt: data['paidAt'] as Timestamp?,
+    );
+  }
+
+  Map<String, dynamic> toMap() => <String, dynamic>{
+        'siteId': siteId,
+        'userId': userId,
+        'productId': productId,
+        'amount': amount,
+        'currency': currency,
+        'status': status,
+        'entitlementRoles': entitlementRoles,
+        'createdAt': createdAt ?? Timestamp.now(),
+        'paidAt': paidAt ?? Timestamp.now(),
+      };
+}
+
+@immutable
+class EntitlementModel {
+  const EntitlementModel({
+    required this.id,
+    required this.userId,
+    required this.siteId,
+    required this.productId,
+    this.roles = const <String>[],
+    this.expiresAt,
+    this.createdAt,
+  });
+
+  final String id;
+  final String userId;
+  final String siteId;
+  final String productId;
+  final List<String> roles;
+  final Timestamp? expiresAt;
+  final Timestamp? createdAt;
+
+  factory EntitlementModel.fromDoc(DocumentSnapshot<Map<String, dynamic>> doc) {
+    final data = doc.data() ?? <String, dynamic>{};
+    return EntitlementModel(
+      id: doc.id,
+      userId: data['userId'] as String? ?? '',
+      siteId: data['siteId'] as String? ?? '',
+      productId: data['productId'] as String? ?? '',
+      roles: List<String>.from(data['roles'] as List? ?? const <String>[]),
+      expiresAt: data['expiresAt'] as Timestamp?,
+      createdAt: data['createdAt'] as Timestamp?,
+    );
+  }
+
+  Map<String, dynamic> toMap() => <String, dynamic>{
+        'userId': userId,
+        'siteId': siteId,
+        'productId': productId,
+        'roles': roles,
+        'expiresAt': expiresAt,
+        'createdAt': createdAt ?? Timestamp.now(),
+      };
+}
+
+@immutable
 class AuditLogModel {
   const AuditLogModel({
     required this.id,

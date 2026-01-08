@@ -6,6 +6,7 @@ import 'package:provider/provider.dart';
 import 'app_state.dart';
 import 'auth_service.dart';
 import 'role_routes.dart';
+import '../../services/telemetry_service.dart';
 
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
@@ -66,9 +67,19 @@ class _LoginPageState extends State<LoginPage> {
         final role = selectableRoles.isNotEmpty ? selectableRoles.first : 'hq';
         final normalized = normalizeRole(role);
         appState.setRole(normalized);
+        TelemetryService.instance.logEvent(
+          event: 'auth.login',
+          role: normalized,
+          siteId: appState.primarySiteId,
+        );
         Navigator.pushNamedAndRemoveUntil(context, dashboardRouteFor(normalized), (route) => false);
       } else {
         appState.clearRole();
+        TelemetryService.instance.logEvent(
+          event: 'auth.login',
+          role: null,
+          siteId: appState.primarySiteId,
+        );
         Navigator.pushReplacementNamed(context, '/roles');
       }
     } catch (e) {

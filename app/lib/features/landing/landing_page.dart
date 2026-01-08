@@ -2,9 +2,18 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../auth/app_state.dart';
+import '../../services/telemetry_service.dart';
+import 'lead_capture_card.dart';
 
-class LandingPage extends StatelessWidget {
+class LandingPage extends StatefulWidget {
   const LandingPage({super.key});
+
+  @override
+  State<LandingPage> createState() => _LandingPageState();
+}
+
+class _LandingPageState extends State<LandingPage> {
+  bool _loggedView = false;
 
   @override
   Widget build(BuildContext context) {
@@ -14,6 +23,12 @@ class LandingPage extends StatelessWidget {
         Navigator.pushReplacementNamed(context, '/roles');
       });
     }
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (_loggedView) return;
+      _loggedView = true;
+      TelemetryService.instance.logEvent(event: 'cms.page.viewed', metadata: {'slug': 'home'});
+    });
 
     return Scaffold(
       body: Container(
@@ -94,7 +109,19 @@ class LandingPage extends StatelessWidget {
                                 _PillarChip(label: 'Impact & Innovation', gradient: [Color(0xFF22C55E), Color(0xFF06B6D4)]),
                               ],
                             ),
-                            const Spacer(),
+                            const SizedBox(height: 28),
+                            Container(
+                              width: double.infinity,
+                              padding: const EdgeInsets.all(20),
+                              decoration: BoxDecoration(
+                                color: Colors.white.withValues(alpha: 0.05),
+                                borderRadius: BorderRadius.circular(16),
+                                border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
+                              ),
+                              child: const LeadCaptureCard(source: 'landing', slug: 'home'),
+                            ),
+                            const SizedBox(height: 20),
+                            const SizedBox(height: 28),
                             Row(
                               children: [
                                 Expanded(

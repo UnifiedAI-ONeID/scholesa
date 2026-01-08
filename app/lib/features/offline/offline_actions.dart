@@ -97,4 +97,32 @@ class OfflineActions {
       ),
     );
   }
+
+  static Future<void> queueLead(
+    OfflineQueue queue, {
+    required String name,
+    required String email,
+    required String source,
+    String? message,
+    String? siteId,
+    String? slug,
+  }) async {
+    final ts = DateTime.now();
+    await queue.enqueue(
+      PendingAction(
+        id: 'lead-${ts.millisecondsSinceEpoch}-${email.trim()}',
+        type: 'lead',
+        payload: {
+          'name': name,
+          'email': email,
+          'source': source,
+          if (message != null && message.isNotEmpty) 'message': message,
+          if (siteId != null && siteId.isNotEmpty) 'siteId': siteId,
+          if (slug != null && slug.isNotEmpty) 'slug': slug,
+          'createdAt': ts.toIso8601String(),
+        },
+        createdAt: ts,
+      ),
+    );
+  }
 }
