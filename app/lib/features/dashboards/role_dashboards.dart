@@ -1852,6 +1852,16 @@ class _MarketplaceCheckoutCardState extends State<_MarketplaceCheckoutCard> {
               const SizedBox(height: 8),
               Text(_status!, style: TextStyle(color: _status!.startsWith('Failed') ? Colors.red : Colors.green)),
               if (_lastIntentId != null) Text('Intent ID: $_lastIntentId'),
+              if (!offline)
+                TextButton.icon(
+                  onPressed: () async {
+                    final appState = context.read<AppState>();
+                    await appState.refreshEntitlements();
+                    _toast('Entitlements refreshed');
+                  },
+                  icon: const Icon(Icons.refresh),
+                  label: const Text('Refresh entitlements after fulfillment'),
+                ),
             ],
           ],
         ),
