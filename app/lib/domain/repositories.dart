@@ -373,6 +373,15 @@ class OrderRepository {
     await doc.set(model.toMap());
     return doc.id;
   }
+
+  Future<List<OrderModel>> listByUser({required String userId, String? siteId, int limit = 20}) async {
+    Query<Map<String, dynamic>> q = _col.where('userId', isEqualTo: userId).orderBy('createdAt', descending: true).limit(limit);
+    if (siteId != null && siteId.isNotEmpty) {
+      q = q.where('siteId', isEqualTo: siteId);
+    }
+    final snap = await q.get();
+    return snap.docs.map(OrderModel.fromDoc).toList();
+  }
 }
 
 class EntitlementRepository {

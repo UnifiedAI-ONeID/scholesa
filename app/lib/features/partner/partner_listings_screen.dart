@@ -7,13 +7,11 @@ class PartnerListingsScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(title: const Text('Listings')),
-      body: ListView(
-        padding: const EdgeInsets.all(16),
-        children: const [
-          Text('Create/edit marketplace listings (stub).'),
-          SizedBox(height: 12),
-          Text('Wire to MarketplaceListing per doc 15.'),
-        ],
+      body: const Center(
+        child: Padding(
+          padding: EdgeInsets.all(16),
+          child: Text('MarketplaceListing repo not present; add when available to list/create listings.'),
+        ),
       ),
     );
   }

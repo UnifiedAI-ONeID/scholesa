@@ -76,6 +76,7 @@ class _SiteCheckInScreenState extends State<SiteCheckInScreen> {
   }
 
   Future<void> _check(BuildContext context, EnrollmentModel e, String action) async {
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('$action recorded for ${e.learnerId}')));
+    // TODO: replace with real SiteCheckInOut repository when schema is available.
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('$action recorded for ${e.learnerId} (demo)')));
   }
 }
