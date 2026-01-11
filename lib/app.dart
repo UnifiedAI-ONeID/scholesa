@@ -1,14 +1,14 @@
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 
 import 'features/auth/app_state.dart';
 import 'features/auth/login_page.dart';
 import 'features/auth/register_page.dart';
+import 'features/dashboards/hq_user_admin_page.dart';
 import 'features/dashboards/role_dashboards.dart';
 import 'features/dashboards/role_selector_page.dart';
 import 'features/dashboards/user_profile_service.dart';
-import 'features/dashboards/hq_user_admin_page.dart';
 
 class ScholesaApp extends StatelessWidget {
   const ScholesaApp({super.key});

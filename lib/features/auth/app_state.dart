@@ -20,6 +20,11 @@ class AppState extends ChangeNotifier {
     notifyListeners();
   }
 
+  void clearRole() {
+    _role = null;
+    notifyListeners();
+  }
+
   void clearAll() {
     _role = null;
     _profile = null;

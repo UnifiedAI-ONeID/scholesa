@@ -11,14 +11,6 @@ class AdminUser {
     this.isActive,
   });
 
-  final String id;
-  final String? email;
-  final String? displayName;
-  final String? role;
-  final List<String> siteIds;
-  final String? activeSiteId;
-  final bool? isActive;
-
   factory AdminUser.fromMap(Map<String, dynamic> map) {
     return AdminUser(
       id: map['id'] as String,
@@ -30,6 +22,14 @@ class AdminUser {
       isActive: map['isActive'] as bool?,
     );
   }
+
+  final String id;
+  final String? email;
+  final String? displayName;
+  final String? role;
+  final List<String> siteIds;
+  final String? activeSiteId;
+  final bool? isActive;
 }
 
 class HqUserAdminService {
@@ -44,7 +44,7 @@ class HqUserAdminService {
       if (siteId != null && siteId.isNotEmpty) 'siteId': siteId,
       if (email != null && email.isNotEmpty) 'email': email.toLowerCase(),
     });
-    final data = result.data as Map<String, dynamic>?;
+    final Map<String, dynamic>? data = result.data as Map<String, dynamic>?;
     final List<dynamic> users = data?['users'] as List<dynamic>? ?? <dynamic>[];
     return users.whereType<Map<String, dynamic>>().map(AdminUser.fromMap).toList();
   }
@@ -61,7 +61,7 @@ class HqUserAdminService {
 
   Future<String> sendReset({required String email}) async {
     final result = await _resetUserPassword.call(<String, dynamic>{'email': email});
-    final data = result.data as Map<String, dynamic>?;
+    final Map<String, dynamic>? data = result.data as Map<String, dynamic>?;
     return (data?['link'] as String?) ?? '';
   }
 
@@ -71,7 +71,7 @@ class HqUserAdminService {
       if (entityId != null) 'entityId': entityId,
       if (entityType != null) 'entityType': entityType,
     });
-    final data = result.data as Map<String, dynamic>?;
+    final Map<String, dynamic>? data = result.data as Map<String, dynamic>?;
     final List<dynamic> logs = data?['logs'] as List<dynamic>? ?? <dynamic>[];
     return logs.whereType<Map<String, dynamic>>().toList();
   }

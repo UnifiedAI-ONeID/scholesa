@@ -40,7 +40,7 @@ class _HqUserAdminPageState extends State<HqUserAdminPage> {
       error = null;
     });
     try {
-      final fetched = await service.fetchUsers(
+      final List<AdminUser> fetched = await service.fetchUsers(
         role: roleFilter,
         siteId: siteController.text.trim().isEmpty ? null : siteController.text.trim(),
         email: emailController.text.trim().isEmpty ? null : emailController.text.trim(),
@@ -55,7 +55,7 @@ class _HqUserAdminPageState extends State<HqUserAdminPage> {
 
   Future<void> _resetPassword(String email) async {
     try {
-      final link = await service.sendReset(email: email);
+      final String link = await service.sendReset(email: email);
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text(link.isNotEmpty ? 'Reset link generated' : 'Reset link requested')), // minimal hint
@@ -257,7 +257,7 @@ class _HqUserAdminPageState extends State<HqUserAdminPage> {
                       itemCount: users.length,
                       separatorBuilder: (_, __) => const SizedBox(height: 8),
                       itemBuilder: (BuildContext context, int index) {
-                        final user = users[index];
+                        final AdminUser user = users[index];
                         return Card(
                           child: ListTile(
                             leading: const Icon(Icons.person_outline),
