@@ -411,9 +411,8 @@ class RoleDashboard extends StatelessWidget {
         final UserRole? role = appState.role;
         
         if (role == null) {
-          return const Scaffold(
-            body: Center(child: CircularProgressIndicator()),
-          );
+          // Show pending approval screen for users without roles
+          return _buildPendingApprovalScreen(context, appState);
         }
 
         final List<DashboardCard> cards = <DashboardCard>[...(_cardRegistry[role] ?? <DashboardCard>[]), ..._sharedCards];
@@ -751,6 +750,162 @@ class RoleDashboard extends StatelessWidget {
             )),
             const SizedBox(height: 16),
           ],
+        ),
+      ),
+    );
+  }
+
+  /// Build pending approval screen for users without assigned roles
+  Widget _buildPendingApprovalScreen(BuildContext context, AppState appState) {
+    return Scaffold(
+      backgroundColor: ScholesaColors.background,
+      body: SafeArea(
+        child: Center(
+          child: Padding(
+            padding: const EdgeInsets.all(24),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: <Widget>[
+                Container(
+                  padding: const EdgeInsets.all(24),
+                  decoration: BoxDecoration(
+                    color: ScholesaColors.warning.withValues(alpha: 0.1),
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Icon(
+                    Icons.hourglass_empty_rounded,
+                    size: 64,
+                    color: ScholesaColors.warning,
+                  ),
+                ),
+                const SizedBox(height: 32),
+                Text(
+                  'Account Pending Approval',
+                  style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                    fontWeight: FontWeight.bold,
+                    color: ScholesaColors.textPrimary,
+                  ),
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: 16),
+                Text(
+                  'Your account has been created, but an administrator needs to assign your role and permissions.',
+                  style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                    color: ScholesaColors.textSecondary,
+                  ),
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  'Please contact your school administrator or check back later.',
+                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                    color: ScholesaColors.textSecondary,
+                  ),
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: 32),
+                Container(
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: ScholesaColors.surface,
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: ScholesaColors.border),
+                  ),
+                  child: Column(
+                    children: <Widget>[
+                      Row(
+                        children: <Widget>[
+                          const Icon(Icons.email_outlined, 
+                            size: 20, 
+                            color: ScholesaColors.textSecondary),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Text(
+                              appState.email ?? 'No email',
+                              style: const TextStyle(
+                                color: ScholesaColors.textPrimary,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 12),
+                      Row(
+                        children: <Widget>[
+                          const Icon(Icons.badge_outlined, 
+                            size: 20, 
+                            color: ScholesaColors.textSecondary),
+                          const SizedBox(width: 12),
+                          const Text(
+                            'Status: ',
+                            style: TextStyle(
+                              color: ScholesaColors.textSecondary,
+                            ),
+                          ),
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 8, 
+                              vertical: 2,
+                            ),
+                            decoration: BoxDecoration(
+                              color: ScholesaColors.warning.withValues(alpha: 0.2),
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            child: const Text(
+                              'Pending',
+                              style: TextStyle(
+                                color: ScholesaColors.warning,
+                                fontWeight: FontWeight.w600,
+                                fontSize: 12,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 32),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: <Widget>[
+                    OutlinedButton.icon(
+                      onPressed: () {
+                        // Refresh to check if role has been assigned
+                        context.go('/');
+                      },
+                      icon: const Icon(Icons.refresh),
+                      label: const Text('Refresh'),
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: ScholesaColors.primary,
+                        side: const BorderSide(color: ScholesaColors.primary),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 24, 
+                          vertical: 12,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 16),
+                    ElevatedButton.icon(
+                      onPressed: () {
+                        context.go('/login');
+                      },
+                      icon: const Icon(Icons.logout),
+                      label: const Text('Sign Out'),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: ScholesaColors.error,
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 24, 
+                          vertical: 12,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
         ),
       ),
     );
