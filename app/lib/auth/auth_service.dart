@@ -1,6 +1,6 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart';
-import '../services/api_client.dart';
 import 'app_state.dart';
 
 /// Service for handling Firebase authentication
@@ -8,14 +8,14 @@ class AuthService {
 
   AuthService({
     required FirebaseAuth auth,
-    required ApiClient apiClient,
     required AppState appState,
+    FirebaseFirestore? firestore,
   })  : _auth = auth,
-        _apiClient = apiClient,
-        _appState = appState;
+        _appState = appState,
+        _firestore = firestore ?? FirebaseFirestore.instance;
   final FirebaseAuth _auth;
-  final ApiClient _apiClient;
   final AppState _appState;
+  final FirebaseFirestore _firestore;
 
   /// Current Firebase user
   User? get currentUser => _auth.currentUser;
@@ -73,16 +73,76 @@ class AuthService {
     _appState.clear();
   }
 
-  /// Bootstrap session by calling /v1/me
+  /// Bootstrap session by loading user profile from Firestore
   Future<void> _bootstrapSession() async {
     try {
-      final Map<String, dynamic> response = await _apiClient.get('/v1/me');
-      _appState.updateFromMeResponse(response);
+      final User? user = currentUser;
+      if (user == null) {
+        _appState.setError('No authenticated user');
+        return;
+      }
+
+      // First, try to find user doc by UID
+      DocumentSnapshot<Map<String, dynamic>> userDoc = 
+          await _firestore.collection('users').doc(user.uid).get();
+
+      if (!userDoc.exists) {
+        // Check if there's an invited user doc by email
+        final String inviteDocId = 'invite_${user.email?.toLowerCase().replaceAll(RegExp(r'[^a-z0-9]'), '_') ?? ''}';
+        final DocumentSnapshot<Map<String, dynamic>> inviteDoc = 
+            await _firestore.collection('users').doc(inviteDocId).get();
+        
+        if (inviteDoc.exists) {
+          // Migrate invited user to real UID
+          final Map<String, dynamic> inviteData = inviteDoc.data()!;
+          await _firestore.collection('users').doc(user.uid).set(<String, dynamic>{
+            ...inviteData,
+            'email': user.email,
+            'displayName': user.displayName ?? inviteData['displayName'],
+            'status': 'active',
+            'activatedAt': FieldValue.serverTimestamp(),
+            'updatedAt': FieldValue.serverTimestamp(),
+          });
+          // Delete the invite doc
+          await _firestore.collection('users').doc(inviteDocId).delete();
+          // Reload the user doc
+          userDoc = await _firestore.collection('users').doc(user.uid).get();
+          debugPrint('Migrated invited user $inviteDocId to UID ${user.uid}');
+        } else {
+          // Create new user document with default role (needs admin to assign proper role)
+          await _firestore.collection('users').doc(user.uid).set(<String, dynamic>{
+            'email': user.email,
+            'displayName': user.displayName ?? user.email?.split('@').first,
+            'createdAt': FieldValue.serverTimestamp(),
+            'status': 'pending',
+            'role': null, // No role - needs admin assignment
+            'siteIds': <String>[],
+          });
+          // Fetch again
+          userDoc = await _firestore.collection('users').doc(user.uid).get();
+          debugPrint('Created new user doc for ${user.uid} - needs role assignment');
+        }
+      }
+      
+      _updateAppStateFromDoc(user.uid, userDoc.data());
     } catch (e) {
       debugPrint('Failed to bootstrap session: $e');
       _appState.setError('Failed to load user profile');
       rethrow;
     }
+  }
+
+  /// Update AppState from Firestore document
+  void _updateAppStateFromDoc(String odId, Map<String, dynamic>? data) {
+    if (data == null) return;
+    _appState.updateFromMeResponse(<String, dynamic>{
+      'userId': odId,
+      'email': data['email'] as String?,
+      'displayName': data['displayName'] as String?,
+      'role': data['role'] as String?,
+      'activeSiteId': data['activeSiteId'] as String?,
+      'siteIds': data['siteIds'] as List<dynamic>? ?? <dynamic>[],
+    });
   }
 
   /// Refresh session (call /v1/me again)

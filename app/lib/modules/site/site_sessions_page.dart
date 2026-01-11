@@ -313,7 +313,7 @@ class _SiteSessionsPageState extends State<SiteSessionsPage> {
   }
 
   void _createNewSession() {
-    showModalBottomSheet(
+    showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,

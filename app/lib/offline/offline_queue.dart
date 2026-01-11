@@ -69,13 +69,13 @@ class QueuedOp {
 /// Offline queue using Hive for persistence
 class OfflineQueue {
   static const String _boxName = 'offline_queue';
-  late Box<Map> _box;
+  late Box<Map<String, dynamic>> _box;
   bool _isInitialized = false;
 
   /// Initialize the queue
   Future<void> init() async {
     if (_isInitialized) return;
-    _box = await Hive.openBox<Map>(_boxName);
+    _box = await Hive.openBox<Map<String, dynamic>>(_boxName);
     _isInitialized = true;
   }
 

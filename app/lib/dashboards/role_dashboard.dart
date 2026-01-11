@@ -516,7 +516,20 @@ class RoleDashboard extends StatelessWidget {
                     icon: const Icon(Icons.settings_outlined, color: Colors.white),
                     tooltip: 'Settings',
                     onPressed: () {
-                      // TODO: Navigate to settings
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: const Row(
+                            children: <Widget>[
+                              Icon(Icons.settings, color: Colors.white),
+                              SizedBox(width: 12),
+                              Text('Settings coming soon'),
+                            ],
+                          ),
+                          backgroundColor: roleColor,
+                          behavior: SnackBarBehavior.floating,
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                        ),
+                      );
                     },
                   ),
                   IconButton(
@@ -691,7 +704,7 @@ class RoleDashboard extends StatelessWidget {
   }
 
   void _showSiteSwitcher(BuildContext context, AppState appState) {
-    showModalBottomSheet(
+    showModalBottomSheet<void>(
       context: context,
       backgroundColor: Colors.white,
       shape: const RoundedRectangleBorder(
@@ -744,7 +757,7 @@ class RoleDashboard extends StatelessWidget {
   }
 
   void _showLogoutDialog(BuildContext context) {
-    showDialog(
+    showDialog<void>(
       context: context,
       builder: (BuildContext context) => AlertDialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),

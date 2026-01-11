@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../auth/app_state.dart';
 import '../../ui/common/empty_state.dart';
+import '../../ui/theme/scholesa_theme.dart';
 import 'provisioning_models.dart';
 import 'provisioning_service.dart';
 
@@ -95,21 +96,21 @@ class _ProvisioningPageState extends State<ProvisioningPage>
   }
 
   void _showCreateLearnerDialog(BuildContext context) {
-    showDialog(
+    showDialog<void>(
       context: context,
       builder: (BuildContext context) => const _CreateLearnerDialog(),
     );
   }
 
   void _showCreateParentDialog(BuildContext context) {
-    showDialog(
+    showDialog<void>(
       context: context,
       builder: (BuildContext context) => const _CreateParentDialog(),
     );
   }
 
   void _showCreateLinkDialog(BuildContext context) {
-    showDialog(
+    showDialog<void>(
       context: context,
       builder: (BuildContext context) => const _CreateLinkDialog(),
     );
@@ -175,7 +176,7 @@ class _LearnersTab extends StatelessWidget {
   }
 
   void _showLearnerOptions(BuildContext context, LearnerProfile learner) {
-    showModalBottomSheet(
+    showModalBottomSheet<void>(
       context: context,
       builder: (BuildContext context) => Column(
         mainAxisSize: MainAxisSize.min,
@@ -185,7 +186,12 @@ class _LearnersTab extends StatelessWidget {
             title: const Text('Edit Learner'),
             onTap: () {
               Navigator.pop(context);
-              // TODO: Implement edit dialog
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: const Text('Edit learner feature coming soon'),
+                  backgroundColor: ScholesaColors.site,
+                ),
+              );
             },
           ),
           ListTile(
@@ -193,7 +199,12 @@ class _LearnersTab extends StatelessWidget {
             title: const Text('Manage Guardian Links'),
             onTap: () {
               Navigator.pop(context);
-              // TODO: Navigate to links filtered by learner
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: const Text('Guardian link management coming soon'),
+                  backgroundColor: ScholesaColors.site,
+                ),
+              );
             },
           ),
         ],
@@ -263,7 +274,7 @@ class _ParentsTab extends StatelessWidget {
   }
 
   void _showParentOptions(BuildContext context, ParentProfile parent) {
-    showModalBottomSheet(
+    showModalBottomSheet<void>(
       context: context,
       builder: (BuildContext context) => Column(
         mainAxisSize: MainAxisSize.min,
@@ -273,7 +284,12 @@ class _ParentsTab extends StatelessWidget {
             title: const Text('Edit Parent'),
             onTap: () {
               Navigator.pop(context);
-              // TODO: Implement edit dialog
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: const Text('Edit parent feature coming soon'),
+                  backgroundColor: ScholesaColors.site,
+                ),
+              );
             },
           ),
           ListTile(
@@ -281,7 +297,12 @@ class _ParentsTab extends StatelessWidget {
             title: const Text('Manage Learner Links'),
             onTap: () {
               Navigator.pop(context);
-              // TODO: Navigate to links filtered by parent
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: const Text('Learner link management coming soon'),
+                  backgroundColor: ScholesaColors.site,
+                ),
+              );
             },
           ),
         ],
@@ -366,7 +387,7 @@ class _LinksTab extends StatelessWidget {
   }
 
   void _confirmDelete(BuildContext context, GuardianLink link, ProvisioningService service) {
-    showDialog(
+    showDialog<void>(
       context: context,
       builder: (BuildContext context) => AlertDialog(
         title: const Text('Delete Link'),
@@ -675,6 +696,7 @@ class _CreateLinkDialogState extends State<_CreateLinkDialog> {
     
     final AppState appState = context.read<AppState>();
     final String? siteId = appState.activeSiteId;
+    final String? currentUserId = appState.userId;
     if (siteId == null) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('No site selected')),
@@ -689,6 +711,7 @@ class _CreateLinkDialogState extends State<_CreateLinkDialog> {
       learnerId: _selectedLearnerId!,
       relationship: _relationship,
       isPrimary: _isPrimary,
+      createdBy: currentUserId ?? 'unknown',
     );
 
     if (!mounted) return;

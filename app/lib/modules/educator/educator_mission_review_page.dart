@@ -240,7 +240,7 @@ class _EducatorMissionReviewPageState extends State<EducatorMissionReviewPage> {
   }
 
   void _openReviewSheet(MissionSubmission submission) {
-    showModalBottomSheet(
+    showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,

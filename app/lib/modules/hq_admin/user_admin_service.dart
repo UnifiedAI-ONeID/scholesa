@@ -1,4 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:cloud_functions/cloud_functions.dart';
 import 'package:flutter/foundation.dart';
 import '../../auth/app_state.dart' show UserRole;
 import 'user_models.dart';
@@ -8,10 +9,13 @@ class UserAdminService extends ChangeNotifier {
 
   UserAdminService({
     FirebaseFirestore? firestore,
+    FirebaseFunctions? functions,
     this.currentUserId,
     this.currentUserEmail,
-  }) : _firestore = firestore ?? FirebaseFirestore.instance;
+  }) : _firestore = firestore ?? FirebaseFirestore.instance,
+       _functions = functions ?? FirebaseFunctions.instance;
   final FirebaseFirestore _firestore;
+  final FirebaseFunctions _functions;
   final String? currentUserId;
   final String? currentUserEmail;
 
@@ -157,6 +161,12 @@ class UserAdminService extends ChangeNotifier {
     }
   }
 
+  /// Generate a deterministic user doc ID from email (for invited users)
+  String _generateUserDocId(String email) {
+    // Use a simple hash of the email for pending invites
+    return 'invite_${email.toLowerCase().replaceAll(RegExp(r'[^a-z0-9]'), '_')}';
+  }
+
   UserRole _parseUserRole(String? role) {
     switch (role) {
       case 'hq':
@@ -225,42 +235,49 @@ class UserAdminService extends ChangeNotifier {
   }
 
   /// Create a new user in Firebase
+  /// Note: This creates a Firestore user profile that must be linked to Firebase Auth
+  /// The user will need to be created in Firebase Auth separately (via invite flow or registration)
   Future<UserModel?> createUser({
     required String email,
     required String displayName,
     required UserRole role,
     required List<String> siteIds,
+    String? uid, // Optional: pre-assigned UID from Firebase Auth
   }) async {
     _isLoading = true;
     notifyListeners();
 
     try {
       final DateTime now = DateTime.now();
-      final DocumentReference<Map<String, dynamic>> docRef = await _firestore
-          .collection('users')
-          .add(<String, dynamic>{
+      
+      // Generate a temporary ID if no UID provided
+      // The ID will be the email hash to allow lookup before Auth is created
+      final String docId = uid ?? _generateUserDocId(email);
+      
+      await _firestore.collection('users').doc(docId).set(<String, dynamic>{
         'email': email,
         'displayName': displayName,
         'role': role.name,
-        'status': UserStatus.pending.name,
+        'status': uid != null ? UserStatus.active.name : UserStatus.pending.name,
         'siteIds': siteIds,
         'createdAt': Timestamp.fromDate(now),
-      });
+        'invitedAt': uid == null ? Timestamp.fromDate(now) : null,
+      }, SetOptions(merge: true));
 
       // Log the action
       await _logAuditAction(
         action: 'user.created',
         entityType: 'User',
-        entityId: docRef.id,
+        entityId: docId,
         siteId: siteIds.isNotEmpty ? siteIds.first : null,
       );
 
       final UserModel newUser = UserModel(
-        uid: docRef.id,
+        uid: docId,
         email: email,
         displayName: displayName,
         role: role,
-        status: UserStatus.pending,
+        status: uid != null ? UserStatus.active : UserStatus.pending,
         siteIds: siteIds,
         createdAt: now,
       );
@@ -269,6 +286,70 @@ class UserAdminService extends ChangeNotifier {
       return newUser;
     } catch (e) {
       _error = 'Failed to create user: $e';
+      return null;
+    } finally {
+      _isLoading = false;
+      notifyListeners();
+    }
+  }
+
+  /// Create a new user with password via Cloud Function
+  /// This creates both the Firebase Auth user and Firestore profile
+  Future<UserModel?> createUserWithPassword({
+    required String email,
+    required String password,
+    required String displayName,
+    required UserRole role,
+    required List<String> siteIds,
+  }) async {
+    _isLoading = true;
+    _error = null;
+    notifyListeners();
+
+    try {
+      final HttpsCallable callable = _functions.httpsCallable('createUserWithPassword');
+      final HttpsCallableResult<dynamic> result = await callable.call(<String, dynamic>{
+        'email': email,
+        'password': password,
+        'displayName': displayName,
+        'role': role.name,
+        'siteIds': siteIds,
+      });
+
+      final Map<String, dynamic> data = Map<String, dynamic>.from(result.data as Map);
+      
+      if (data['success'] == true) {
+        final String uid = data['uid'] as String;
+        final DateTime now = DateTime.now();
+        
+        // Log the action
+        await _logAuditAction(
+          action: 'user.created_with_password',
+          entityType: 'User',
+          entityId: uid,
+          siteId: siteIds.isNotEmpty ? siteIds.first : null,
+          details: <String, String>{'email': email, 'role': role.name},
+        );
+
+        final UserModel newUser = UserModel(
+          uid: uid,
+          email: email,
+          displayName: displayName,
+          role: role,
+          status: UserStatus.active,
+          siteIds: siteIds,
+          createdAt: now,
+        );
+        
+        _users = <UserModel>[..._users, newUser];
+        return newUser;
+      } else {
+        _error = data['error']?.toString() ?? 'Failed to create user';
+        return null;
+      }
+    } catch (e) {
+      _error = 'Failed to create user: $e';
+      debugPrint('createUserWithPassword error: $e');
       return null;
     } finally {
       _isLoading = false;

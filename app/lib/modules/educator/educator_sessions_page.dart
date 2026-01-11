@@ -216,7 +216,7 @@ class _EducatorSessionsPageState extends State<EducatorSessionsPage>
   }
 
   void _openSessionDetail(EducatorSession session) {
-    showModalBottomSheet(
+    showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,

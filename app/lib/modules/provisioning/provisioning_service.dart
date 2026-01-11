@@ -1,12 +1,14 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/foundation.dart';
-import '../../services/api_client.dart';
 import 'provisioning_models.dart';
 
-/// Service for user provisioning operations
+/// Service for user provisioning operations - LIVE DATA FROM FIREBASE
 class ProvisioningService extends ChangeNotifier {
 
-  ProvisioningService({required ApiClient apiClient}) : _apiClient = apiClient;
-  final ApiClient _apiClient;
+  ProvisioningService({
+    FirebaseFirestore? firestore,
+  }) : _firestore = firestore ?? FirebaseFirestore.instance;
+  final FirebaseFirestore _firestore;
 
   List<LearnerProfile> _learners = <LearnerProfile>[];
   List<ParentProfile> _parents = <ParentProfile>[];
@@ -20,18 +22,31 @@ class ProvisioningService extends ChangeNotifier {
   bool get isLoading => _isLoading;
   String? get error => _error;
 
-  /// Load learners for site
+  /// Load learners for site from Firestore
   Future<void> loadLearners(String siteId) async {
     _isLoading = true;
     _error = null;
     notifyListeners();
 
     try {
-      final Map<String, dynamic> response = await _apiClient.get('/v1/sites/$siteId/learners');
-      final List<dynamic> items = response['items'] as List? ?? <dynamic>[];
-      _learners = items
-          .map((e) => LearnerProfile.fromJson(e as Map<String, dynamic>))
-          .toList();
+      final QuerySnapshot<Map<String, dynamic>> snapshot = await _firestore
+          .collection('users')
+          .where('siteIds', arrayContains: siteId)
+          .where('role', isEqualTo: 'learner')
+          .get();
+
+      _learners = snapshot.docs.map((QueryDocumentSnapshot<Map<String, dynamic>> doc) {
+        final Map<String, dynamic> data = doc.data();
+        return LearnerProfile(
+          id: doc.id,
+          siteId: siteId,
+          userId: doc.id,
+          displayName: data['displayName'] as String? ?? '',
+          gradeLevel: data['gradeLevel'] as int?,
+          dateOfBirth: _parseTimestamp(data['dateOfBirth']),
+          notes: data['notes'] as String?,
+        );
+      }).toList();
     } catch (e) {
       _error = 'Failed to load learners: $e';
       debugPrint(_error);
@@ -41,18 +56,30 @@ class ProvisioningService extends ChangeNotifier {
     }
   }
 
-  /// Load parents for site
+  /// Load parents for site from Firestore
   Future<void> loadParents(String siteId) async {
     _isLoading = true;
     _error = null;
     notifyListeners();
 
     try {
-      final Map<String, dynamic> response = await _apiClient.get('/v1/sites/$siteId/parents');
-      final List<dynamic> items = response['items'] as List? ?? <dynamic>[];
-      _parents = items
-          .map((e) => ParentProfile.fromJson(e as Map<String, dynamic>))
-          .toList();
+      final QuerySnapshot<Map<String, dynamic>> snapshot = await _firestore
+          .collection('users')
+          .where('siteIds', arrayContains: siteId)
+          .where('role', isEqualTo: 'parent')
+          .get();
+
+      _parents = snapshot.docs.map((QueryDocumentSnapshot<Map<String, dynamic>> doc) {
+        final Map<String, dynamic> data = doc.data();
+        return ParentProfile(
+          id: doc.id,
+          siteId: siteId,
+          userId: doc.id,
+          displayName: data['displayName'] as String? ?? '',
+          phone: data['phone'] as String?,
+          email: data['email'] as String?,
+        );
+      }).toList();
     } catch (e) {
       _error = 'Failed to load parents: $e';
       debugPrint(_error);
@@ -62,23 +89,49 @@ class ProvisioningService extends ChangeNotifier {
     }
   }
 
-  /// Load guardian links for site
+  /// Load guardian links for site from Firestore
   Future<void> loadGuardianLinks(String siteId) async {
     try {
-      final Map<String, dynamic> response = await _apiClient.get('/v1/guardian-links', queryParams: <String, String>{
-        'siteId': siteId,
-      });
-      final List<dynamic> items = response['items'] as List? ?? <dynamic>[];
-      _guardianLinks = items
-          .map((e) => GuardianLink.fromJson(e as Map<String, dynamic>))
-          .toList();
+      final QuerySnapshot<Map<String, dynamic>> snapshot = await _firestore
+          .collection('guardian_links')
+          .where('siteId', isEqualTo: siteId)
+          .get();
+
+      _guardianLinks = snapshot.docs.map((QueryDocumentSnapshot<Map<String, dynamic>> doc) {
+        final Map<String, dynamic> data = doc.data();
+        return GuardianLink(
+          id: doc.id,
+          siteId: siteId,
+          parentId: data['parentId'] as String? ?? '',
+          learnerId: data['learnerId'] as String? ?? '',
+          relationship: data['relationship'] as String? ?? 'guardian',
+          isPrimary: data['isPrimary'] as bool? ?? false,
+          createdAt: _parseTimestamp(data['createdAt']) ?? DateTime.now(),
+          createdBy: data['createdBy'] as String? ?? '',
+          parentName: data['parentName'] as String?,
+          learnerName: data['learnerName'] as String?,
+        );
+      }).toList();
       notifyListeners();
     } catch (e) {
       debugPrint('Failed to load guardian links: $e');
     }
   }
 
-  /// Create learner profile
+  DateTime? _parseTimestamp(dynamic value) {
+    if (value == null) {
+      return null;
+    }
+    if (value is Timestamp) {
+      return value.toDate();
+    }
+    if (value is int) {
+      return DateTime.fromMillisecondsSinceEpoch(value);
+    }
+    return null;
+  }
+
+  /// Create learner profile in Firestore
   Future<LearnerProfile?> createLearner({
     required String siteId,
     required String email,
@@ -92,19 +145,29 @@ class ProvisioningService extends ChangeNotifier {
     notifyListeners();
 
     try {
-      final Map<String, dynamic> response = await _apiClient.post(
-        '/v1/sites/$siteId/learners',
-        body: <String, dynamic>{
-          'email': email,
-          'displayName': displayName,
-          if (gradeLevel != null) 'gradeLevel': gradeLevel,
-          if (dateOfBirth != null)
-            'dateOfBirth': dateOfBirth.millisecondsSinceEpoch,
-          if (notes != null) 'notes': notes,
-        },
+      final DocumentReference<Map<String, dynamic>> docRef = await _firestore
+          .collection('users')
+          .add(<String, dynamic>{
+            'email': email,
+            'displayName': displayName,
+            'role': 'learner',
+            'siteIds': <String>[siteId],
+            if (gradeLevel != null) 'gradeLevel': gradeLevel,
+            if (dateOfBirth != null) 'dateOfBirth': Timestamp.fromDate(dateOfBirth),
+            if (notes != null) 'notes': notes,
+            'createdAt': FieldValue.serverTimestamp(),
+            'status': 'active',
+          });
+
+      final LearnerProfile learner = LearnerProfile(
+        id: docRef.id,
+        siteId: siteId,
+        userId: docRef.id,
+        displayName: displayName,
+        gradeLevel: gradeLevel,
+        dateOfBirth: dateOfBirth,
+        notes: notes,
       );
-      
-      final LearnerProfile learner = LearnerProfile.fromJson(response);
       _learners.add(learner);
       notifyListeners();
       return learner;
@@ -118,7 +181,7 @@ class ProvisioningService extends ChangeNotifier {
     }
   }
 
-  /// Create parent profile
+  /// Create parent profile in Firestore
   Future<ParentProfile?> createParent({
     required String siteId,
     required String email,
@@ -130,16 +193,26 @@ class ProvisioningService extends ChangeNotifier {
     notifyListeners();
 
     try {
-      final Map<String, dynamic> response = await _apiClient.post(
-        '/v1/sites/$siteId/parents',
-        body: <String, dynamic>{
-          'email': email,
-          'displayName': displayName,
-          if (phone != null) 'phone': phone,
-        },
+      final DocumentReference<Map<String, dynamic>> docRef = await _firestore
+          .collection('users')
+          .add(<String, dynamic>{
+            'email': email,
+            'displayName': displayName,
+            'role': 'parent',
+            'siteIds': <String>[siteId],
+            if (phone != null) 'phone': phone,
+            'createdAt': FieldValue.serverTimestamp(),
+            'status': 'active',
+          });
+
+      final ParentProfile parent = ParentProfile(
+        id: docRef.id,
+        siteId: siteId,
+        userId: docRef.id,
+        displayName: displayName,
+        phone: phone,
+        email: email,
       );
-      
-      final ParentProfile parent = ParentProfile.fromJson(response);
       _parents.add(parent);
       notifyListeners();
       return parent;
@@ -153,12 +226,13 @@ class ProvisioningService extends ChangeNotifier {
     }
   }
 
-  /// Create guardian link
+  /// Create guardian link in Firestore
   Future<GuardianLink?> createGuardianLink({
     required String siteId,
     required String parentId,
     required String learnerId,
     required String relationship,
+    required String createdBy,
     bool isPrimary = false,
   }) async {
     _isLoading = true;
@@ -166,18 +240,41 @@ class ProvisioningService extends ChangeNotifier {
     notifyListeners();
 
     try {
-      final Map<String, dynamic> response = await _apiClient.post(
-        '/v1/guardian-links',
-        body: <String, dynamic>{
-          'siteId': siteId,
-          'parentId': parentId,
-          'learnerId': learnerId,
-          'relationship': relationship,
-          'isPrimary': isPrimary,
-        },
+      // Get parent and learner names for denormalization
+      final DocumentSnapshot<Map<String, dynamic>> parentDoc = 
+          await _firestore.collection('users').doc(parentId).get();
+      final DocumentSnapshot<Map<String, dynamic>> learnerDoc = 
+          await _firestore.collection('users').doc(learnerId).get();
+
+      final String? parentName = parentDoc.data()?['displayName'] as String?;
+      final String? learnerName = learnerDoc.data()?['displayName'] as String?;
+
+      final DocumentReference<Map<String, dynamic>> docRef = await _firestore
+          .collection('guardian_links')
+          .add(<String, dynamic>{
+            'siteId': siteId,
+            'parentId': parentId,
+            'learnerId': learnerId,
+            'relationship': relationship,
+            'isPrimary': isPrimary,
+            'parentName': parentName,
+            'learnerName': learnerName,
+            'createdAt': FieldValue.serverTimestamp(),
+            'createdBy': createdBy,
+          });
+
+      final GuardianLink link = GuardianLink(
+        id: docRef.id,
+        siteId: siteId,
+        parentId: parentId,
+        learnerId: learnerId,
+        relationship: relationship,
+        isPrimary: isPrimary,
+        createdAt: DateTime.now(),
+        createdBy: createdBy,
+        parentName: parentName,
+        learnerName: learnerName,
       );
-      
-      final GuardianLink link = GuardianLink.fromJson(response);
       _guardianLinks.add(link);
       notifyListeners();
       return link;
@@ -191,10 +288,10 @@ class ProvisioningService extends ChangeNotifier {
     }
   }
 
-  /// Delete guardian link
+  /// Delete guardian link from Firestore
   Future<bool> deleteGuardianLink(String linkId) async {
     try {
-      await _apiClient.delete('/v1/guardian-links/$linkId');
+      await _firestore.collection('guardian_links').doc(linkId).delete();
       _guardianLinks.removeWhere((GuardianLink l) => l.id == linkId);
       notifyListeners();
       return true;

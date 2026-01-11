@@ -368,7 +368,7 @@ class _CheckinPageState extends State<CheckinPage> with SingleTickerProviderStat
   }
 
   void _showCheckInDialog(LearnerDaySummary summary) {
-    showModalBottomSheet(
+    showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
@@ -377,7 +377,7 @@ class _CheckinPageState extends State<CheckinPage> with SingleTickerProviderStat
   }
 
   void _showCheckOutDialog(LearnerDaySummary summary) {
-    showModalBottomSheet(
+    showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
@@ -684,7 +684,7 @@ class _LearnerCheckinCard extends StatelessWidget {
   }
 
   void _showAuthorizedPickups(BuildContext context) {
-    showModalBottomSheet(
+    showModalBottomSheet<void>(
       context: context,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
