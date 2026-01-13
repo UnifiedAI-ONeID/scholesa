@@ -302,6 +302,18 @@ class CheckinService extends ChangeNotifier {
         notes: notes,
       );
 
+      // Track telemetry - calculate session duration if we have check-in time
+      final int summaryIndex = _learnerSummaries.indexWhere((LearnerDaySummary s) => s.learnerId == learnerId);
+      Duration? sessionDuration;
+      if (summaryIndex != -1 && _learnerSummaries[summaryIndex].checkedInAt != null) {
+        sessionDuration = DateTime.now().difference(_learnerSummaries[summaryIndex].checkedInAt!);
+      }
+      telemetryService?.trackCheckout(
+        learnerId: learnerId,
+        sessionDuration: sessionDuration ?? const Duration(hours: 1),
+        isOffline: false,
+      );
+
       _todayRecords = <CheckRecord>[record, ..._todayRecords];
 
       // Update learner summary

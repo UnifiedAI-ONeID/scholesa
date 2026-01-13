@@ -186,34 +186,42 @@ class _ScholesaAppState extends State<ScholesaApp> {
         ),
         // Site Check-in services - uses authenticated user's site
         ChangeNotifierProxyProvider<AppState, CheckinService>(
-          create: (_) => CheckinService(),
+          create: (_) => CheckinService(telemetryService: _telemetryService),
           update: (_, AppState appState, CheckinService? previous) {
             return CheckinService(
               siteId: appState.activeSiteId,
+              telemetryService: _telemetryService,
             );
           },
         ),
         // Learner Missions services - uses authenticated user's ID
         ChangeNotifierProxyProvider<AppState, MissionService>(
-          create: (_) => MissionService(),
+          create: (_) => MissionService(telemetryService: _telemetryService),
           update: (_, AppState appState, MissionService? previous) {
             return MissionService(
               learnerId: appState.userId,
+              telemetryService: _telemetryService,
             );
           },
         ),
         // Learner Habits services - uses authenticated user's ID
         ChangeNotifierProxyProvider<AppState, HabitService>(
-          create: (_) => HabitService(),
+          create: (_) => HabitService(telemetryService: _telemetryService),
           update: (_, AppState appState, HabitService? previous) {
-            return HabitService(learnerId: appState.userId);
+            return HabitService(
+              learnerId: appState.userId,
+              telemetryService: _telemetryService,
+            );
           },
         ),
         // Messages services - uses authenticated user's ID
         ChangeNotifierProxyProvider<AppState, MessageService>(
-          create: (_) => MessageService(),
+          create: (_) => MessageService(telemetryService: _telemetryService),
           update: (_, AppState appState, MessageService? previous) {
-            return MessageService(userId: appState.userId);
+            return MessageService(
+              userId: appState.userId,
+              telemetryService: _telemetryService,
+            );
           },
         ),
         // Parent services - uses authenticated user's ID
@@ -234,12 +242,16 @@ class _ScholesaAppState extends State<ScholesaApp> {
         ),
         // Attendance services - uses authenticated user's ID and site
         ChangeNotifierProxyProvider<AppState, AttendanceService>(
-          create: (_) => AttendanceService(syncCoordinator: _syncCoordinator),
+          create: (_) => AttendanceService(
+            syncCoordinator: _syncCoordinator,
+            telemetryService: _telemetryService,
+          ),
           update: (_, AppState appState, AttendanceService? previous) {
             return AttendanceService(
               syncCoordinator: _syncCoordinator,
               educatorId: appState.userId,
               siteId: appState.activeSiteId,
+              telemetryService: _telemetryService,
             );
           },
         ),

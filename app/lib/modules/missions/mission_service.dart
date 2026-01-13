@@ -437,6 +437,13 @@ class MissionService extends ChangeNotifier {
         completedAt: DateTime.now(),
         progress: 1.0,
       );
+
+      // Track telemetry
+      telemetryService?.trackMissionCompleted(
+        missionId: missionId,
+        pillar: mission.pillar.name,
+        xpEarned: mission.xpReward,
+      );
       
       // Update progress
       if (_progress != null) {
