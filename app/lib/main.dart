@@ -24,6 +24,8 @@ import 'offline/sync_coordinator.dart';
 import 'router/app_router.dart';
 import 'services/api_client.dart';
 import 'services/firestore_service.dart';
+import 'services/insights_service.dart';
+import 'services/popup_service.dart';
 import 'services/session_bootstrap.dart';
 import 'services/telemetry_service.dart';
 import 'ui/theme/scholesa_theme.dart';
@@ -263,6 +265,28 @@ class _ScholesaAppState extends State<ScholesaApp> {
           update: (_, AppState appState, PartnerService? previous) {
             return PartnerService(
               partnerId: appState.userId ?? '',
+              telemetryService: _telemetryService,
+            );
+          },
+        ),
+        // Popup/Nudge services - micro-coaching engine (docs/21)
+        ChangeNotifierProxyProvider<AppState, PopupService>(
+          create: (_) => PopupService(telemetryService: _telemetryService),
+          update: (_, AppState appState, PopupService? previous) {
+            return PopupService(
+              userId: appState.userId,
+              userRole: appState.role?.name,
+              telemetryService: _telemetryService,
+            );
+          },
+        ),
+        // Insights services - teacher support insights (docs/23)
+        ChangeNotifierProxyProvider<AppState, InsightsService>(
+          create: (_) => InsightsService(telemetryService: _telemetryService),
+          update: (_, AppState appState, InsightsService? previous) {
+            return InsightsService(
+              educatorId: appState.userId,
+              siteId: appState.activeSiteId,
               telemetryService: _telemetryService,
             );
           },
