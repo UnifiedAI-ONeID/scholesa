@@ -614,4 +614,183 @@ class TelemetryService {
       'mergedUserId': mergedUserId,
     });
   }
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // BILLING EVENTS (from docs/13)
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  /// Track checkout session created
+  Future<void> trackCheckoutStarted({
+    required String productType,
+    required String productId,
+  }) async {
+    await logEvent('billing.checkout.started', metadata: <String, dynamic>{
+      'productType': productType,
+      'productId': productId,
+    });
+  }
+
+  /// Track subscription created
+  Future<void> trackSubscriptionCreated({
+    required String subscriptionId,
+    required String planId,
+  }) async {
+    await logEvent('billing.subscription.created', metadata: <String, dynamic>{
+      'subscriptionId': subscriptionId,
+      'planId': planId,
+    });
+  }
+
+  /// Track subscription canceled
+  Future<void> trackSubscriptionCanceled({
+    required String subscriptionId,
+    required String reason,
+  }) async {
+    await logEvent('billing.subscription.canceled', metadata: <String, dynamic>{
+      'subscriptionId': subscriptionId,
+      'reason': reason,
+    });
+  }
+
+  /// Track invoice paid
+  Future<void> trackInvoicePaid({
+    required String invoiceId,
+    required double amount,
+  }) async {
+    await logEvent('billing.invoice.paid', metadata: <String, dynamic>{
+      'invoiceId': invoiceId,
+      'amount': amount,
+    });
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // MARKETPLACE EVENTS (from docs/15)
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  /// Track listing created
+  Future<void> trackListingCreated({
+    required String listingId,
+    required String listingType,
+  }) async {
+    await logEvent('marketplace.listing.created', metadata: <String, dynamic>{
+      'listingId': listingId,
+      'listingType': listingType,
+    });
+  }
+
+  /// Track listing submitted for approval
+  Future<void> trackListingSubmitted({
+    required String listingId,
+  }) async {
+    await logEvent('marketplace.listing.submitted', metadata: <String, dynamic>{
+      'listingId': listingId,
+    });
+  }
+
+  /// Track listing status changed
+  Future<void> trackListingStatusChanged({
+    required String listingId,
+    required String fromStatus,
+    required String toStatus,
+  }) async {
+    await logEvent('marketplace.listing.status_changed', metadata: <String, dynamic>{
+      'listingId': listingId,
+      'fromStatus': fromStatus,
+      'toStatus': toStatus,
+    });
+  }
+
+  /// Track order created
+  Future<void> trackMarketplaceOrderCreated({
+    required String orderId,
+    required String listingId,
+  }) async {
+    await logEvent('marketplace.order.created', metadata: <String, dynamic>{
+      'orderId': orderId,
+      'listingId': listingId,
+    });
+  }
+
+  /// Track fulfillment created
+  Future<void> trackFulfillmentCreated({
+    required String orderId,
+    required String fulfillmentId,
+  }) async {
+    await logEvent('marketplace.fulfillment.created', metadata: <String, dynamic>{
+      'orderId': orderId,
+      'fulfillmentId': fulfillmentId,
+    });
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // NOTIFICATION EVENTS (from docs/17)
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  /// Track notification sent
+  Future<void> trackNotificationSent({
+    required String notificationId,
+    required String notificationType,
+  }) async {
+    await logEvent('notification.sent', metadata: <String, dynamic>{
+      'notificationId': notificationId,
+      'notificationType': notificationType,
+    });
+  }
+
+  /// Track notification read
+  Future<void> trackNotificationRead({
+    required String notificationId,
+  }) async {
+    await logEvent('notification.read', metadata: <String, dynamic>{
+      'notificationId': notificationId,
+    });
+  }
+
+  /// Track notification dismissed
+  Future<void> trackNotificationDismissed({
+    required String notificationId,
+  }) async {
+    await logEvent('notification.dismissed', metadata: <String, dynamic>{
+      'notificationId': notificationId,
+    });
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // PORTFOLIO EVENTS
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  /// Track portfolio item added
+  Future<void> trackPortfolioItemAdded({
+    required String itemId,
+    required String itemType,
+    required String pillar,
+  }) async {
+    await logEvent('portfolio.item.added', metadata: <String, dynamic>{
+      'itemId': itemId,
+      'itemType': itemType,
+      'pillar': pillar,
+    });
+  }
+
+  /// Track portfolio item shared
+  Future<void> trackPortfolioItemShared({
+    required String itemId,
+    required String shareTarget, // 'parent', 'public'
+  }) async {
+    await logEvent('portfolio.item.shared', metadata: <String, dynamic>{
+      'itemId': itemId,
+      'shareTarget': shareTarget,
+    });
+  }
+
+  /// Track credential added
+  Future<void> trackCredentialAdded({
+    required String credentialId,
+    required String credentialType,
+  }) async {
+    await logEvent('portfolio.credential.added', metadata: <String, dynamic>{
+      'credentialId': credentialId,
+      'credentialType': credentialType,
+    });
+  }
 }
