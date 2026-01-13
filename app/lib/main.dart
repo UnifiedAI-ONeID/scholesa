@@ -24,12 +24,16 @@ import 'offline/offline_queue.dart';
 import 'offline/sync_coordinator.dart';
 import 'router/app_router.dart';
 import 'services/api_client.dart';
+import 'services/billing_service.dart';
 import 'services/curriculum_service.dart';
 import 'services/export_service.dart';
 import 'services/firestore_service.dart';
 import 'services/identity_service.dart';
 import 'services/insights_service.dart';
+import 'services/marketplace_service.dart';
+import 'services/notification_service.dart';
 import 'services/popup_service.dart';
+import 'services/portfolio_service.dart';
 import 'services/scheduling_service.dart';
 import 'services/session_bootstrap.dart';
 import 'services/telemetry_service.dart';
@@ -348,6 +352,48 @@ class _ScholesaAppState extends State<ScholesaApp> {
           update: (_, AppState appState, CurriculumService? previous) {
             return CurriculumService(
               educatorId: appState.userId,
+              telemetryService: _telemetryService,
+            );
+          },
+        ),
+        // Billing services - subscriptions/invoices (docs/13) (✅ telemetry)
+        ChangeNotifierProxyProvider<AppState, BillingService>(
+          create: (_) => BillingService(telemetryService: _telemetryService),
+          update: (_, AppState appState, BillingService? previous) {
+            return BillingService(
+              userId: appState.userId,
+              siteId: appState.activeSiteId,
+              telemetryService: _telemetryService,
+            );
+          },
+        ),
+        // Marketplace services - listings/orders (docs/15) (✅ telemetry)
+        ChangeNotifierProxyProvider<AppState, MarketplaceService>(
+          create: (_) => MarketplaceService(telemetryService: _telemetryService),
+          update: (_, AppState appState, MarketplaceService? previous) {
+            return MarketplaceService(
+              userId: appState.userId,
+              partnerId: appState.role?.name == 'partner' ? appState.userId : null,
+              telemetryService: _telemetryService,
+            );
+          },
+        ),
+        // Notification services - in-app notifications (docs/17) (✅ telemetry)
+        ChangeNotifierProxyProvider<AppState, NotificationService>(
+          create: (_) => NotificationService(telemetryService: _telemetryService),
+          update: (_, AppState appState, NotificationService? previous) {
+            return NotificationService(
+              userId: appState.userId,
+              telemetryService: _telemetryService,
+            );
+          },
+        ),
+        // Portfolio services - learner portfolios (docs/47) (✅ telemetry)
+        ChangeNotifierProxyProvider<AppState, PortfolioService>(
+          create: (_) => PortfolioService(telemetryService: _telemetryService),
+          update: (_, AppState appState, PortfolioService? previous) {
+            return PortfolioService(
+              learnerId: appState.role?.name == 'learner' ? appState.userId : null,
               telemetryService: _telemetryService,
             );
           },
