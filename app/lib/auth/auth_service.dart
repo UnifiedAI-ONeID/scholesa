@@ -1,6 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart';
+import '../services/telemetry_service.dart';
 import 'app_state.dart';
 
 /// Service for handling Firebase authentication
@@ -9,6 +10,7 @@ class AuthService {
   AuthService({
     required FirebaseAuth auth,
     required AppState appState,
+    this.telemetryService,
     FirebaseFirestore? firestore,
   })  : _auth = auth,
         _appState = appState,
@@ -16,6 +18,7 @@ class AuthService {
   final FirebaseAuth _auth;
   final AppState _appState;
   final FirebaseFirestore _firestore;
+  final TelemetryService? telemetryService;
 
   /// Current Firebase user
   User? get currentUser => _auth.currentUser;
@@ -35,8 +38,17 @@ class AuthService {
         password: password,
       );
       await _bootstrapSession();
+      
+      // Track successful login telemetry
+      await telemetryService?.trackLogin(method: 'email');
     } on FirebaseAuthException catch (e) {
       _appState.setError(_mapAuthError(e.code));
+      
+      // Track failed login telemetry
+      await telemetryService?.logEvent('auth.login_failed', metadata: <String, dynamic>{
+        'method': 'email',
+        'errorCode': e.code,
+      });
       rethrow;
     } catch (e) {
       _appState.setError('An unexpected error occurred');
@@ -69,6 +81,7 @@ class AuthService {
 
   /// Sign out
   Future<void> signOut() async {
+    await telemetryService?.trackLogout();
     await _auth.signOut();
     _appState.clear();
   }

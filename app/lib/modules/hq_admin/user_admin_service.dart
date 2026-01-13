@@ -2,6 +2,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:cloud_functions/cloud_functions.dart';
 import 'package:flutter/foundation.dart';
 import '../../auth/app_state.dart' show UserRole;
+import '../../services/telemetry_service.dart';
 import 'user_models.dart';
 
 /// Service for HQ user administration
@@ -12,12 +13,14 @@ class UserAdminService extends ChangeNotifier {
     FirebaseFunctions? functions,
     this.currentUserId,
     this.currentUserEmail,
+    this.telemetryService,
   }) : _firestore = firestore ?? FirebaseFirestore.instance,
        _functions = functions ?? FirebaseFunctions.instance;
   final FirebaseFirestore _firestore;
   final FirebaseFunctions _functions;
   final String? currentUserId;
   final String? currentUserEmail;
+  final TelemetryService? telemetryService;
 
   List<UserModel> _users = <UserModel>[];
   List<SiteModel> _sites = <SiteModel>[];
@@ -283,6 +286,14 @@ class UserAdminService extends ChangeNotifier {
       );
       
       _users = <UserModel>[..._users, newUser];
+      
+      // Track telemetry
+      await telemetryService?.logEvent('user_admin.user_created', metadata: <String, dynamic>{
+        'userId': docId,
+        'role': role.name,
+        'siteCount': siteIds.length,
+      });
+      
       return newUser;
     } catch (e) {
       _error = 'Failed to create user: $e';
@@ -341,6 +352,14 @@ class UserAdminService extends ChangeNotifier {
         );
         
         _users = <UserModel>[..._users, newUser];
+        
+        // Track telemetry
+        await telemetryService?.logEvent('user_admin.user_created_with_password', metadata: <String, dynamic>{
+          'userId': uid,
+          'role': role.name,
+          'siteCount': siteIds.length,
+        });
+        
         return newUser;
       } else {
         _error = data['error']?.toString() ?? 'Failed to create user';
@@ -380,6 +399,14 @@ class UserAdminService extends ChangeNotifier {
       );
 
       _users[index] = oldUser.copyWith(role: newRole, updatedAt: now);
+      
+      // Track telemetry
+      await telemetryService?.logEvent('user_admin.role_updated', metadata: <String, dynamic>{
+        'userId': userId,
+        'oldRole': oldUser.role.name,
+        'newRole': newRole.name,
+      });
+      
       notifyListeners();
       return true;
     } catch (e) {
@@ -413,6 +440,14 @@ class UserAdminService extends ChangeNotifier {
       );
 
       _users[index] = oldUser.copyWith(status: newStatus, updatedAt: now);
+      
+      // Track telemetry
+      await telemetryService?.logEvent('user_admin.status_updated', metadata: <String, dynamic>{
+        'userId': userId,
+        'oldStatus': oldUser.status.name,
+        'newStatus': newStatus.name,
+      });
+      
       notifyListeners();
       return true;
     } catch (e) {
@@ -448,6 +483,13 @@ class UserAdminService extends ChangeNotifier {
       );
 
       _users[index] = user.copyWith(siteIds: newSiteIds, updatedAt: now);
+      
+      // Track telemetry
+      await telemetryService?.logEvent('user_admin.site_added', metadata: <String, dynamic>{
+        'userId': userId,
+        'siteId': siteId,
+      });
+      
       notifyListeners();
       return true;
     } catch (e) {
@@ -481,6 +523,13 @@ class UserAdminService extends ChangeNotifier {
       );
 
       _users[index] = user.copyWith(siteIds: newSiteIds, updatedAt: now);
+      
+      // Track telemetry
+      await telemetryService?.logEvent('user_admin.site_removed', metadata: <String, dynamic>{
+        'userId': userId,
+        'siteId': siteId,
+      });
+      
       notifyListeners();
       return true;
     } catch (e) {

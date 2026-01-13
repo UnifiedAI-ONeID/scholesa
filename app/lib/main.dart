@@ -19,17 +19,21 @@ import 'modules/messages/messages.dart';
 import 'modules/missions/missions.dart';
 import 'modules/parent/parent.dart';
 import 'modules/partner/partner.dart';
+import 'modules/provisioning/provisioning_service.dart';
 import 'modules/site/incident_service.dart';
 import 'offline/offline_queue.dart';
 import 'offline/sync_coordinator.dart';
 import 'router/app_router.dart';
+import 'services/ai_draft_service.dart';
 import 'services/api_client.dart';
 import 'services/billing_service.dart';
+import 'services/cms_service.dart';
 import 'services/curriculum_service.dart';
 import 'services/export_service.dart';
 import 'services/firestore_service.dart';
 import 'services/identity_service.dart';
 import 'services/insights_service.dart';
+import 'services/integration_service.dart';
 import 'services/marketplace_service.dart';
 import 'services/notification_service.dart';
 import 'services/popup_service.dart';
@@ -37,6 +41,9 @@ import 'services/portfolio_service.dart';
 import 'services/scheduling_service.dart';
 import 'services/session_bootstrap.dart';
 import 'services/telemetry_service.dart';
+import 'services/safety_service.dart';
+import 'services/audit_log_service.dart';
+import 'services/approval_service.dart';
 import 'ui/theme/scholesa_theme.dart';
 
 void main() async {
@@ -113,6 +120,7 @@ class _ScholesaAppState extends State<ScholesaApp> {
       _authService = AuthService(
         auth: FirebaseAuth.instance,
         appState: _appState,
+        telemetryService: _telemetryService,
       );
 
       _sessionBootstrap = SessionBootstrap(
@@ -186,13 +194,14 @@ class _ScholesaAppState extends State<ScholesaApp> {
         Provider.value(value: _firestoreService),
         Provider.value(value: _authService),
         Provider.value(value: _telemetryService),
-        // HQ Admin services - uses authenticated user for audit logging
+        // HQ Admin services - uses authenticated user for audit logging (✅ telemetry)
         ChangeNotifierProxyProvider<AppState, UserAdminService>(
-          create: (_) => UserAdminService(),
+          create: (_) => UserAdminService(telemetryService: _telemetryService),
           update: (_, AppState appState, UserAdminService? previous) {
             return UserAdminService(
               currentUserId: appState.userId,
               currentUserEmail: appState.email,
+              telemetryService: _telemetryService,
             );
           },
         ),
@@ -236,12 +245,19 @@ class _ScholesaAppState extends State<ScholesaApp> {
             );
           },
         ),
-        // Parent services - uses authenticated user's ID
+        // Parent services - uses authenticated user's ID (✅ telemetry)
         ChangeNotifierProxyProvider<AppState, ParentService>(
-          create: (_) => ParentService(),
+          create: (_) => ParentService(telemetryService: _telemetryService),
           update: (_, AppState appState, ParentService? previous) {
-            return ParentService(parentId: appState.userId);
+            return ParentService(
+              parentId: appState.userId,
+              telemetryService: _telemetryService,
+            );
           },
+        ),
+        // Provisioning services - site admin user/guardian management (✅ telemetry)
+        ChangeNotifierProvider<ProvisioningService>(
+          create: (_) => ProvisioningService(telemetryService: _telemetryService),
         ),
         // Educator services - uses authenticated user's ID (✅ telemetry for insights/supports)
         ChangeNotifierProxyProvider<AppState, EducatorService>(
@@ -307,6 +323,7 @@ class _ScholesaAppState extends State<ScholesaApp> {
             return IncidentService(
               userId: appState.userId,
               siteId: appState.activeSiteId,
+              userRole: appState.role?.name,
               telemetryService: _telemetryService,
             );
           },
@@ -394,6 +411,74 @@ class _ScholesaAppState extends State<ScholesaApp> {
           update: (_, AppState appState, PortfolioService? previous) {
             return PortfolioService(
               learnerId: appState.role?.name == 'learner' ? appState.userId : null,
+              telemetryService: _telemetryService,
+            );
+          },
+        ),
+        // AI Draft services - human-in-the-loop AI (docs/07) (✅ telemetry)
+        ChangeNotifierProxyProvider<AppState, AiDraftService>(
+          create: (_) => AiDraftService(telemetryService: _telemetryService),
+          update: (_, AppState appState, AiDraftService? previous) {
+            return AiDraftService(
+              userId: appState.userId,
+              userRole: appState.role?.name,
+              telemetryService: _telemetryService,
+            );
+          },
+        ),
+        // CMS services - marketing pages/leads (docs/14) (✅ telemetry)
+        ChangeNotifierProxyProvider<AppState, CmsService>(
+          create: (_) => CmsService(telemetryService: _telemetryService),
+          update: (_, AppState appState, CmsService? previous) {
+            return CmsService(
+              userId: appState.userId,
+              userRole: appState.role?.name,
+              telemetryService: _telemetryService,
+            );
+          },
+        ),
+        // Integration services - Classroom/GitHub (docs/36) (✅ telemetry)
+        ChangeNotifierProxyProvider<AppState, IntegrationService>(
+          create: (_) => IntegrationService(telemetryService: _telemetryService),
+          update: (_, AppState appState, IntegrationService? previous) {
+            return IntegrationService(
+              userId: appState.userId,
+              siteId: appState.activeSiteId,
+              telemetryService: _telemetryService,
+            );
+          },
+        ),
+        // Safety services - consent/pickup (docs/41) (✅ telemetry)
+        ChangeNotifierProxyProvider<AppState, SafetyService>(
+          create: (_) => SafetyService(telemetryService: _telemetryService),
+          update: (_, AppState appState, SafetyService? previous) {
+            return SafetyService(
+              userId: appState.userId,
+              siteId: appState.activeSiteId,
+              userRole: appState.role?.name,
+              telemetryService: _telemetryService,
+            );
+          },
+        ),
+        // Audit Log services - compliance/exports (docs/43) (✅ telemetry)
+        ChangeNotifierProxyProvider<AppState, AuditLogService>(
+          create: (_) => AuditLogService(telemetryService: _telemetryService),
+          update: (_, AppState appState, AuditLogService? previous) {
+            return AuditLogService(
+              userId: appState.userId,
+              siteId: appState.activeSiteId,
+              userRole: appState.role?.name,
+              telemetryService: _telemetryService,
+            );
+          },
+        ),
+        // Approval services - HQ approvals queue (docs/15,16) (✅ telemetry)
+        ChangeNotifierProxyProvider<AppState, ApprovalService>(
+          create: (_) => ApprovalService(telemetryService: _telemetryService),
+          update: (_, AppState appState, ApprovalService? previous) {
+            return ApprovalService(
+              userId: appState.userId,
+              userRole: appState.role?.name,
               telemetryService: _telemetryService,
             );
           },

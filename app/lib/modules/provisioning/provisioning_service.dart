@@ -1,5 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/foundation.dart';
+import '../../services/telemetry_service.dart';
 import 'provisioning_models.dart';
 
 /// Service for user provisioning operations - LIVE DATA FROM FIREBASE
@@ -7,8 +8,10 @@ class ProvisioningService extends ChangeNotifier {
 
   ProvisioningService({
     FirebaseFirestore? firestore,
+    this.telemetryService,
   }) : _firestore = firestore ?? FirebaseFirestore.instance;
   final FirebaseFirestore _firestore;
+  final TelemetryService? telemetryService;
 
   List<LearnerProfile> _learners = <LearnerProfile>[];
   List<ParentProfile> _parents = <ParentProfile>[];
@@ -169,6 +172,13 @@ class ProvisioningService extends ChangeNotifier {
         notes: notes,
       );
       _learners.add(learner);
+      
+      // Track telemetry
+      await telemetryService?.logEvent('provisioning.learner_created', metadata: <String, dynamic>{
+        'siteId': siteId,
+        'learnerId': docRef.id,
+      });
+      
       notifyListeners();
       return learner;
     } catch (e) {
@@ -214,6 +224,13 @@ class ProvisioningService extends ChangeNotifier {
         email: email,
       );
       _parents.add(parent);
+      
+      // Track telemetry
+      await telemetryService?.logEvent('provisioning.parent_created', metadata: <String, dynamic>{
+        'siteId': siteId,
+        'parentId': docRef.id,
+      });
+      
       notifyListeners();
       return parent;
     } catch (e) {
@@ -276,6 +293,15 @@ class ProvisioningService extends ChangeNotifier {
         learnerName: learnerName,
       );
       _guardianLinks.add(link);
+      
+      // Track telemetry
+      await telemetryService?.logEvent('provisioning.guardian_link_created', metadata: <String, dynamic>{
+        'siteId': siteId,
+        'parentId': parentId,
+        'learnerId': learnerId,
+        'relationship': relationship,
+      });
+      
       notifyListeners();
       return link;
     } catch (e) {
@@ -291,8 +317,17 @@ class ProvisioningService extends ChangeNotifier {
   /// Delete guardian link from Firestore
   Future<bool> deleteGuardianLink(String linkId) async {
     try {
+      final GuardianLink? linkToDelete = _guardianLinks.where((GuardianLink l) => l.id == linkId).firstOrNull;
       await _firestore.collection('guardian_links').doc(linkId).delete();
       _guardianLinks.removeWhere((GuardianLink l) => l.id == linkId);
+      
+      // Track telemetry
+      await telemetryService?.logEvent('provisioning.guardian_link_deleted', metadata: <String, dynamic>{
+        'linkId': linkId,
+        'parentId': linkToDelete?.parentId,
+        'learnerId': linkToDelete?.learnerId,
+      });
+      
       notifyListeners();
       return true;
     } catch (e) {

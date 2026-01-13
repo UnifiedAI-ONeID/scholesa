@@ -793,4 +793,234 @@ class TelemetryService {
       'credentialType': credentialType,
     });
   }
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // AI DRAFT EVENTS (from docs/07)
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  /// Track AI draft requested
+  Future<void> trackAiDraftRequested({
+    required String draftId,
+    required String draftType,
+  }) async {
+    await logEvent('ai.draft.requested', metadata: <String, dynamic>{
+      'draftId': draftId,
+      'draftType': draftType,
+    });
+  }
+
+  /// Track AI draft approved (human-in-the-loop)
+  Future<void> trackAiDraftApproved({
+    required String draftId,
+    required bool wasEdited,
+  }) async {
+    await logEvent('ai.draft.approved', metadata: <String, dynamic>{
+      'draftId': draftId,
+      'wasEdited': wasEdited,
+    });
+  }
+
+  /// Track AI draft rejected
+  Future<void> trackAiDraftRejected({
+    required String draftId,
+  }) async {
+    await logEvent('ai.draft.rejected', metadata: <String, dynamic>{
+      'draftId': draftId,
+    });
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // INTEGRATION EVENTS (from docs/36)
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  /// Track integration connected
+  Future<void> trackIntegrationConnected({
+    required String provider,
+    required List<String> scopes,
+  }) async {
+    await logEvent('integration.connected', metadata: <String, dynamic>{
+      'provider': provider,
+      'scopeCount': scopes.length,
+    });
+  }
+
+  /// Track integration disconnected
+  Future<void> trackIntegrationDisconnected({
+    required String provider,
+  }) async {
+    await logEvent('integration.disconnected', metadata: <String, dynamic>{
+      'provider': provider,
+    });
+  }
+
+  /// Track roster sync requested
+  Future<void> trackRosterSyncRequested({
+    required String provider,
+    required String courseId,
+  }) async {
+    await logEvent('integration.roster_sync.requested', metadata: <String, dynamic>{
+      'provider': provider,
+      'courseId': courseId,
+    });
+  }
+
+  /// Track roster sync completed
+  Future<void> trackRosterSyncCompleted({
+    required String provider,
+    required int added,
+    required int updated,
+    required int paused,
+  }) async {
+    await logEvent('integration.roster_sync.completed', metadata: <String, dynamic>{
+      'provider': provider,
+      'added': added,
+      'updated': updated,
+      'paused': paused,
+    });
+  }
+
+  /// Track attachment created (Classroom add-on)
+  Future<void> trackAttachmentCreated({
+    required String provider,
+    required String attachmentId,
+    required String missionId,
+  }) async {
+    await logEvent('integration.attachment.created', metadata: <String, dynamic>{
+      'provider': provider,
+      'attachmentId': attachmentId,
+      'missionId': missionId,
+    });
+  }
+
+  /// Track grade pushed to external system
+  Future<void> trackGradePushed({
+    required String provider,
+    required String attemptId,
+  }) async {
+    await logEvent('integration.grade.pushed', metadata: <String, dynamic>{
+      'provider': provider,
+      'attemptId': attemptId,
+    });
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // SAFETY & CONSENT EVENTS (docs/41)
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  /// Track learner consent updated
+  Future<void> trackConsentUpdated({
+    required String learnerId,
+    required bool photoCaptureAllowed,
+    required bool shareWithLinkedParents,
+    required bool marketingUseAllowed,
+  }) async {
+    await logEvent('safety.consent.updated', metadata: <String, dynamic>{
+      'learnerId': learnerId,
+      'photoCaptureAllowed': photoCaptureAllowed,
+      'shareWithLinkedParents': shareWithLinkedParents,
+      'marketingUseAllowed': marketingUseAllowed,
+    });
+  }
+
+  /// Track pickup person added
+  Future<void> trackPickupPersonAdded({
+    required String learnerId,
+    required String relationshipType,
+  }) async {
+    await logEvent('safety.pickup.person_added', metadata: <String, dynamic>{
+      'learnerId': learnerId,
+      'relationshipType': relationshipType,
+    });
+  }
+
+  /// Track pickup person removed
+  Future<void> trackPickupPersonRemoved({
+    required String learnerId,
+  }) async {
+    await logEvent('safety.pickup.person_removed', metadata: <String, dynamic>{
+      'learnerId': learnerId,
+    });
+  }
+
+  /// Track pickup verification
+  Future<void> trackPickupVerified({
+    required String learnerId,
+    required String pickupPersonId,
+    String? verifiedBy,
+  }) async {
+    await logEvent('safety.pickup.verified', metadata: <String, dynamic>{
+      'learnerId': learnerId,
+      'pickupPersonId': pickupPersonId,
+      'verifiedBy': verifiedBy,
+    });
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // APPROVAL EVENTS (docs/15, docs/16)
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  /// Track listing approved/rejected
+  Future<void> trackListingReviewed({
+    required String listingId,
+    required String decision,
+    String? reason,
+  }) async {
+    await logEvent('approval.listing.$decision', metadata: <String, dynamic>{
+      'listingId': listingId,
+      'reason': reason,
+    });
+  }
+
+  /// Track contract approved/rejected
+  Future<void> trackContractReviewed({
+    required String contractId,
+    required String decision,
+    String? reason,
+  }) async {
+    await logEvent('approval.contract.$decision', metadata: <String, dynamic>{
+      'contractId': contractId,
+      'reason': reason,
+    });
+  }
+
+  /// Track payout approved/rejected
+  Future<void> trackPayoutReviewed({
+    required String payoutId,
+    required String decision,
+    required double amount,
+    String? reason,
+  }) async {
+    await logEvent('approval.payout.$decision', metadata: <String, dynamic>{
+      'payoutId': payoutId,
+      'amount': amount,
+      'reason': reason,
+    });
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // AUDIT LOG EVENTS (docs/43)
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  /// Track audit log viewed
+  Future<void> trackAuditLogViewed({
+    int? pageSize,
+    String? filterAction,
+  }) async {
+    await logEvent('audit.log.viewed', metadata: <String, dynamic>{
+      'pageSize': pageSize,
+      'filterAction': filterAction,
+    });
+  }
+
+  /// Track legal hold set
+  Future<void> trackLegalHoldSet({
+    required String requestId,
+    required bool isHeld,
+    String? reason,
+  }) async {
+    await logEvent('audit.legal_hold.${isHeld ? 'set' : 'released'}', metadata: <String, dynamic>{
+      'requestId': requestId,
+      'reason': reason,
+    });
+  }
 }

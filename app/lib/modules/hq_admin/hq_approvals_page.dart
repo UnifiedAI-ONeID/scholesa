@@ -1,8 +1,12 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+import '../../services/approval_service.dart';
+import '../../services/telemetry_service.dart';
 import '../../ui/theme/scholesa_theme.dart';
 
-/// HQ Approvals page for approving partner contracts, curriculum, etc.
+/// HQ Approvals page for approving partner contracts, marketplace listings, payouts
 /// Based on docs/16_PARTNER_CONTRACTING_WORKFLOWS_SPEC.md
+/// Wired to ApprovalService for live Firestore data
 class HqApprovalsPage extends StatefulWidget {
   const HqApprovalsPage({super.key});
 
@@ -10,63 +14,17 @@ class HqApprovalsPage extends StatefulWidget {
   State<HqApprovalsPage> createState() => _HqApprovalsPageState();
 }
 
-enum _ApprovalType { partnerContract, curriculum, siteConfig, userRole }
-enum _ApprovalStatus { pending, approved, rejected }
-
-class _ApprovalItem {
-  const _ApprovalItem({
-    required this.id,
-    required this.title,
-    required this.type,
-    required this.submittedBy,
-    required this.submittedAt,
-    required this.status,
-    this.notes,
-  });
-
-  final String id;
-  final String title;
-  final _ApprovalType type;
-  final String submittedBy;
-  final DateTime submittedAt;
-  final _ApprovalStatus status;
-  final String? notes;
-}
-
 class _HqApprovalsPageState extends State<HqApprovalsPage> with SingleTickerProviderStateMixin {
   late TabController _tabController;
-  
-  final List<_ApprovalItem> _approvals = <_ApprovalItem>[
-    _ApprovalItem(
-      id: '1',
-      title: 'New Partner: TechEd Solutions',
-      type: _ApprovalType.partnerContract,
-      submittedBy: 'Site Lead - Downtown',
-      submittedAt: DateTime.now().subtract(const Duration(hours: 2)),
-      status: _ApprovalStatus.pending,
-    ),
-    _ApprovalItem(
-      id: '2',
-      title: 'Curriculum: AI Fundamentals v2.0',
-      type: _ApprovalType.curriculum,
-      submittedBy: 'Curriculum Team',
-      submittedAt: DateTime.now().subtract(const Duration(days: 1)),
-      status: _ApprovalStatus.pending,
-    ),
-    _ApprovalItem(
-      id: '3',
-      title: 'Role Change: Jane D. → Site Lead',
-      type: _ApprovalType.userRole,
-      submittedBy: 'HR Admin',
-      submittedAt: DateTime.now().subtract(const Duration(days: 2)),
-      status: _ApprovalStatus.approved,
-    ),
-  ];
 
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 2, vsync: this);
+    _tabController = TabController(length: 3, vsync: this);
+    // Load pending approvals on init
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      context.read<ApprovalService>().loadAllPending();
+    });
   }
 
   @override
@@ -83,74 +41,90 @@ class _HqApprovalsPageState extends State<HqApprovalsPage> with SingleTickerProv
         title: const Text('Approvals'),
         backgroundColor: ScholesaColors.hqGradient.colors.first,
         foregroundColor: Colors.white,
+        actions: <Widget>[
+          IconButton(
+            icon: const Icon(Icons.refresh_rounded),
+            onPressed: () => context.read<ApprovalService>().loadAllPending(),
+          ),
+        ],
         bottom: TabBar(
           controller: _tabController,
           indicatorColor: Colors.white,
           labelColor: Colors.white,
           unselectedLabelColor: Colors.white70,
           tabs: const <Widget>[
-            Tab(text: 'Pending'),
-            Tab(text: 'Completed'),
+            Tab(text: 'Listings'),
+            Tab(text: 'Contracts'),
+            Tab(text: 'Payouts'),
           ],
         ),
       ),
-      body: TabBarView(
-        controller: _tabController,
-        children: <Widget>[
-          _buildApprovalList(_ApprovalStatus.pending),
-          _buildCompletedList(),
-        ],
+      body: Consumer<ApprovalService>(
+        builder: (BuildContext context, ApprovalService service, _) {
+          if (service.isLoading) {
+            return const Center(child: CircularProgressIndicator());
+          }
+
+          if (service.error != null) {
+            return Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: <Widget>[
+                  Icon(Icons.error_outline_rounded, size: 48, color: Colors.red.withValues(alpha: 0.7)),
+                  const SizedBox(height: 16),
+                  Text(service.error!, style: const TextStyle(color: ScholesaColors.textSecondary)),
+                  const SizedBox(height: 16),
+                  ElevatedButton.icon(
+                    onPressed: () => service.loadAllPending(),
+                    icon: const Icon(Icons.refresh),
+                    label: const Text('Retry'),
+                  ),
+                ],
+              ),
+            );
+          }
+
+          return TabBarView(
+            controller: _tabController,
+            children: <Widget>[
+              _buildApprovalList(service.pendingListings, ApprovalType.listing),
+              _buildApprovalList(service.pendingContracts, ApprovalType.contract),
+              _buildApprovalList(service.pendingPayouts, ApprovalType.payout),
+            ],
+          );
+        },
       ),
     );
   }
 
-  Widget _buildApprovalList(_ApprovalStatus statusFilter) {
-    final List<_ApprovalItem> filtered = _approvals
-        .where((_ApprovalItem a) => a.status == statusFilter)
-        .toList();
-
-    if (filtered.isEmpty) {
+  Widget _buildApprovalList(List<ApprovalItem> items, ApprovalType type) {
+    if (items.isEmpty) {
       return Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: <Widget>[
             Icon(Icons.check_circle_outline_rounded, size: 64, color: Colors.green.withValues(alpha: 0.5)),
             const SizedBox(height: 16),
-            const Text(
-              'No pending approvals',
-              style: TextStyle(fontSize: 16, color: ScholesaColors.textSecondary),
+            Text(
+              'No pending ${type.name}s',
+              style: const TextStyle(fontSize: 16, color: ScholesaColors.textSecondary),
             ),
           ],
         ),
       );
     }
 
-    return ListView.builder(
-      padding: const EdgeInsets.all(16),
-      itemCount: filtered.length,
-      itemBuilder: (BuildContext context, int index) => _buildApprovalCard(filtered[index]),
+    return RefreshIndicator(
+      onRefresh: () => context.read<ApprovalService>().loadAllPending(),
+      child: ListView.builder(
+        padding: const EdgeInsets.all(16),
+        itemCount: items.length,
+        itemBuilder: (BuildContext context, int index) => _buildApprovalCard(items[index]),
+      ),
     );
   }
 
-  Widget _buildCompletedList() {
-    final List<_ApprovalItem> completed = _approvals
-        .where((_ApprovalItem a) => a.status != _ApprovalStatus.pending)
-        .toList();
-
-    if (completed.isEmpty) {
-      return const Center(
-        child: Text('No completed approvals', style: TextStyle(color: ScholesaColors.textSecondary)),
-      );
-    }
-
-    return ListView.builder(
-      padding: const EdgeInsets.all(16),
-      itemCount: completed.length,
-      itemBuilder: (BuildContext context, int index) => _buildApprovalCard(completed[index], showActions: false),
-    );
-  }
-
-  Widget _buildApprovalCard(_ApprovalItem item, {bool showActions = true}) {
+  Widget _buildApprovalCard(ApprovalItem item) {
     return Card(
       margin: const EdgeInsets.only(bottom: 12),
       color: ScholesaColors.surface,
@@ -173,60 +147,58 @@ class _HqApprovalsPageState extends State<HqApprovalsPage> with SingleTickerProv
                         style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
                       ),
                       const SizedBox(height: 4),
-                      Text(
-                        'By ${item.submittedBy}',
-                        style: const TextStyle(fontSize: 13, color: ScholesaColors.textSecondary),
-                      ),
+                      if (item.description != null)
+                        Text(
+                          item.description!,
+                          style: const TextStyle(fontSize: 13, color: ScholesaColors.textSecondary),
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                        ),
                     ],
                   ),
                 ),
-                if (!showActions) _buildStatusBadge(item.status),
+                _buildWaitTimeBadge(item.waitTime),
               ],
             ),
-            if (showActions) ...<Widget>[
-              const SizedBox(height: 16),
-              Row(
-                children: <Widget>[
-                  Expanded(
-                    child: OutlinedButton(
-                      onPressed: () => _handleReject(item),
-                      style: OutlinedButton.styleFrom(foregroundColor: Colors.red),
-                      child: const Text('Reject'),
-                    ),
+            const SizedBox(height: 16),
+            Row(
+              children: <Widget>[
+                Expanded(
+                  child: OutlinedButton(
+                    onPressed: () => _handleReject(item),
+                    style: OutlinedButton.styleFrom(foregroundColor: Colors.red),
+                    child: const Text('Reject'),
                   ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: ElevatedButton(
-                      onPressed: () => _handleApprove(item),
-                      style: ElevatedButton.styleFrom(backgroundColor: Colors.green),
-                      child: const Text('Approve'),
-                    ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: ElevatedButton(
+                    onPressed: () => _handleApprove(item),
+                    style: ElevatedButton.styleFrom(backgroundColor: Colors.green),
+                    child: const Text('Approve'),
                   ),
-                ],
-              ),
-            ],
+                ),
+              ],
+            ),
           ],
         ),
       ),
     );
   }
 
-  Widget _buildTypeIcon(_ApprovalType type) {
+  Widget _buildTypeIcon(ApprovalType type) {
     IconData icon;
     Color color;
     switch (type) {
-      case _ApprovalType.partnerContract:
-        icon = Icons.handshake_rounded;
+      case ApprovalType.listing:
+        icon = Icons.storefront_rounded;
         color = Colors.purple;
-      case _ApprovalType.curriculum:
-        icon = Icons.menu_book_rounded;
+      case ApprovalType.contract:
+        icon = Icons.handshake_rounded;
         color = Colors.blue;
-      case _ApprovalType.siteConfig:
-        icon = Icons.settings_rounded;
-        color = Colors.orange;
-      case _ApprovalType.userRole:
-        icon = Icons.person_rounded;
-        color = Colors.teal;
+      case ApprovalType.payout:
+        icon = Icons.account_balance_rounded;
+        color = Colors.green;
     }
 
     return Container(
@@ -239,40 +211,116 @@ class _HqApprovalsPageState extends State<HqApprovalsPage> with SingleTickerProv
     );
   }
 
-  Widget _buildStatusBadge(_ApprovalStatus status) {
-    Color color;
+  Widget _buildWaitTimeBadge(Duration waitTime) {
     String label;
-    switch (status) {
-      case _ApprovalStatus.pending:
-        color = Colors.orange;
-        label = 'Pending';
-      case _ApprovalStatus.approved:
-        color = Colors.green;
-        label = 'Approved';
-      case _ApprovalStatus.rejected:
-        color = Colors.red;
-        label = 'Rejected';
+    Color color;
+    
+    if (waitTime.inDays > 0) {
+      label = '${waitTime.inDays}d';
+      color = Colors.red;
+    } else if (waitTime.inHours > 0) {
+      label = '${waitTime.inHours}h';
+      color = Colors.orange;
+    } else {
+      label = '${waitTime.inMinutes}m';
+      color = Colors.green;
     }
 
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
       decoration: BoxDecoration(
         color: color.withValues(alpha: 0.15),
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(8),
       ),
       child: Text(label, style: TextStyle(fontSize: 12, fontWeight: FontWeight.w500, color: color)),
     );
   }
 
-  void _handleApprove(_ApprovalItem item) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('Approved: ${item.title}'), backgroundColor: Colors.green),
-    );
+  Future<void> _handleApprove(ApprovalItem item) async {
+    final ApprovalService service = context.read<ApprovalService>();
+    final TelemetryService telemetry = context.read<TelemetryService>();
+    bool success = false;
+
+    switch (item.type) {
+      case ApprovalType.listing:
+        success = await service.approveListing(item.id);
+        await telemetry.trackListingReviewed(listingId: item.id, decision: 'approved');
+      case ApprovalType.contract:
+        success = await service.approveContract(item.id);
+        await telemetry.trackContractReviewed(contractId: item.id, decision: 'approved');
+      case ApprovalType.payout:
+        success = await service.approvePayout(item.id);
+        final double amount = (item.metadata?['amount'] as num?)?.toDouble() ?? 0;
+        await telemetry.trackPayoutReviewed(payoutId: item.id, decision: 'approved', amount: amount);
+    }
+
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(success ? 'Approved: ${item.title}' : 'Failed to approve'),
+          backgroundColor: success ? Colors.green : Colors.red,
+        ),
+      );
+    }
   }
 
-  void _handleReject(_ApprovalItem item) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('Rejected: ${item.title}'), backgroundColor: Colors.red),
+  Future<void> _handleReject(ApprovalItem item) async {
+    // Show rejection reason dialog
+    final String? reason = await showDialog<String>(
+      context: context,
+      builder: (BuildContext ctx) {
+        final TextEditingController controller = TextEditingController();
+        return AlertDialog(
+          title: const Text('Rejection Reason'),
+          content: TextField(
+            controller: controller,
+            decoration: const InputDecoration(
+              hintText: 'Enter reason for rejection (optional)',
+            ),
+            maxLines: 3,
+          ),
+          actions: <Widget>[
+            TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text('Cancel'),
+            ),
+            ElevatedButton(
+              onPressed: () => Navigator.pop(ctx, controller.text),
+              style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+              child: const Text('Reject'),
+            ),
+          ],
+        );
+      },
     );
+
+    if (reason == null) return; // Cancelled
+
+    final ApprovalService service = context.read<ApprovalService>();
+    final TelemetryService telemetry = context.read<TelemetryService>();
+    final String? rejectionReason = reason.isEmpty ? null : reason;
+    bool success = false;
+
+    switch (item.type) {
+      case ApprovalType.listing:
+        success = await service.rejectListing(item.id, reason: rejectionReason);
+        await telemetry.trackListingReviewed(listingId: item.id, decision: 'rejected', reason: rejectionReason);
+      case ApprovalType.contract:
+        success = await service.rejectContract(item.id, reason: rejectionReason);
+        await telemetry.trackContractReviewed(contractId: item.id, decision: 'rejected', reason: rejectionReason);
+      case ApprovalType.payout:
+        success = await service.rejectPayout(item.id, reason: rejectionReason);
+        final double amount = (item.metadata?['amount'] as num?)?.toDouble() ?? 0;
+        await telemetry.trackPayoutReviewed(payoutId: item.id, decision: 'rejected', amount: amount, reason: rejectionReason);
+    }
+
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(success ? 'Rejected: ${item.title}' : 'Failed to reject'),
+          backgroundColor: success ? Colors.orange : Colors.red,
+        ),
+      );
+    }
   }
 }

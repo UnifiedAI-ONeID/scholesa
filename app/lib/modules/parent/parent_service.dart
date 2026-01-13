@@ -1,5 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/foundation.dart';
+import '../../services/telemetry_service.dart';
 import 'parent_models.dart';
 
 /// Service for parent-specific views - LIVE DATA FROM FIREBASE
@@ -8,9 +9,11 @@ class ParentService extends ChangeNotifier {
   ParentService({
     this.parentId,
     FirebaseFirestore? firestore,
+    this.telemetryService,
   }) : _firestore = firestore ?? FirebaseFirestore.instance;
   final FirebaseFirestore _firestore;
   final String? parentId;
+  final TelemetryService? telemetryService;
 
   List<LearnerSummary> _learnerSummaries = <LearnerSummary>[];
   BillingSummary? _billingSummary;
@@ -38,6 +41,11 @@ class ParentService extends ChangeNotifier {
     try {
       await _loadLinkedLearners();
       await _loadBillingData();
+      
+      // Track telemetry for dashboard view
+      await telemetryService?.logEvent('parent.dashboard_viewed', metadata: <String, dynamic>{
+        'learnerCount': _learnerSummaries.length,
+      });
     } catch (e) {
       _error = 'Failed to load parent data: $e';
       debugPrint(_error);

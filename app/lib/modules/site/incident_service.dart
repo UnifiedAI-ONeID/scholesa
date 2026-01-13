@@ -8,6 +8,7 @@ class IncidentService extends ChangeNotifier {
   IncidentService({
     this.siteId,
     this.userId,
+    this.userRole,
     this.telemetryService,
     FirebaseFirestore? firestore,
   }) : _firestore = firestore ?? FirebaseFirestore.instance;
@@ -15,6 +16,7 @@ class IncidentService extends ChangeNotifier {
   final FirebaseFirestore _firestore;
   final String? siteId;
   final String? userId;
+  final String? userRole;
   final TelemetryService? telemetryService;
 
   // State
@@ -27,12 +29,15 @@ class IncidentService extends ChangeNotifier {
   List<Incident> get openIncidents => _incidents.where((Incident i) => i.status == IncidentStatus.submitted).toList();
   List<Incident> get reviewedIncidents => _incidents.where((Incident i) => i.status == IncidentStatus.reviewed).toList();
   List<Incident> get closedIncidents => _incidents.where((Incident i) => i.status == IncidentStatus.closed).toList();
+  List<Incident> get criticalIncidents => _incidents.where((Incident i) => i.severity == IncidentSeverity.critical).toList();
+  List<Incident> get majorIncidents => _incidents.where((Incident i) => i.severity == IncidentSeverity.major).toList();
   bool get isLoading => _isLoading;
   String? get error => _error;
 
-  /// Load incidents for the site
+  /// Load incidents for the site (or all sites for HQ)
   Future<void> loadIncidents() async {
-    if (siteId == null) {
+    // HQ can see all sites
+    if (userRole != 'hq' && siteId == null) {
       _error = 'Site not set';
       notifyListeners();
       return;
@@ -43,10 +48,47 @@ class IncidentService extends ChangeNotifier {
     notifyListeners();
 
     try {
+      Query<Map<String, dynamic>> query = _firestore
+          .collection('incidents')
+          .orderBy('reportedAt', descending: true);
+
+      // Site admins only see their site
+      if (userRole != 'hq' && siteId != null) {
+        query = query.where('siteId', isEqualTo: siteId);
+      }
+
+      final QuerySnapshot<Map<String, dynamic>> snapshot = await query.limit(100).get();
+
+      _incidents = snapshot.docs.map((QueryDocumentSnapshot<Map<String, dynamic>> doc) {
+        final Map<String, dynamic> data = doc.data();
+        return Incident.fromMap(doc.id, data);
+      }).toList();
+
+      debugPrint('Loaded ${_incidents.length} incidents');
+    } catch (e) {
+      _error = 'Failed to load incidents: $e';
+      debugPrint(_error);
+      _incidents = <Incident>[];
+    } finally {
+      _isLoading = false;
+      notifyListeners();
+    }
+  }
+
+  /// Load only escalated/critical incidents (for HQ oversight)
+  Future<void> loadEscalatedIncidents() async {
+    if (userRole != 'hq') return;
+
+    _isLoading = true;
+    _error = null;
+    notifyListeners();
+
+    try {
       final QuerySnapshot<Map<String, dynamic>> snapshot = await _firestore
           .collection('incidents')
-          .where('siteId', isEqualTo: siteId)
+          .where('severity', whereIn: <String>['major', 'critical'])
           .orderBy('reportedAt', descending: true)
+          .limit(50)
           .get();
 
       _incidents = snapshot.docs.map((QueryDocumentSnapshot<Map<String, dynamic>> doc) {
@@ -54,11 +96,10 @@ class IncidentService extends ChangeNotifier {
         return Incident.fromMap(doc.id, data);
       }).toList();
 
-      debugPrint('Loaded ${_incidents.length} incidents for site $siteId');
+      debugPrint('Loaded ${_incidents.length} escalated incidents');
     } catch (e) {
-      _error = 'Failed to load incidents: $e';
+      _error = 'Failed to load escalated incidents: $e';
       debugPrint(_error);
-      _incidents = <Incident>[];
     } finally {
       _isLoading = false;
       notifyListeners();
