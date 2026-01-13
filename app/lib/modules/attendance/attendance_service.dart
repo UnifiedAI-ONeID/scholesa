@@ -2,7 +2,10 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/foundation.dart';
 import '../../offline/offline_queue.dart';
 import '../../offline/sync_coordinator.dart';
+import '../../services/telemetry_service.dart';
 import 'attendance_models.dart';
+
+// Telemetry wiring: TelemetryService is injected via constructor or accessed via Provider
 
 /// Service for attendance operations
 class AttendanceService extends ChangeNotifier {
@@ -12,12 +15,14 @@ class AttendanceService extends ChangeNotifier {
     FirebaseFirestore? firestore,
     this.educatorId,
     this.siteId,
+    this.telemetryService,
   })  : _syncCoordinator = syncCoordinator,
         _firestore = firestore ?? FirebaseFirestore.instance;
   final SyncCoordinator _syncCoordinator;
   final String? educatorId;
   final String? siteId;
   final FirebaseFirestore _firestore;
+  final TelemetryService? telemetryService;
 
   List<SessionOccurrence> _todayOccurrences = <SessionOccurrence>[];
   SessionOccurrence? _currentOccurrence;
@@ -200,6 +205,14 @@ class AttendanceService extends ChangeNotifier {
       await _syncCoordinator.queueOperation(
         OpType.attendanceRecord,
         record.toJson(),
+      );
+
+      // Track telemetry event
+      telemetryService?.trackAttendanceRecorded(
+        sessionOccurrenceId: record.occurrenceId,
+        totalLearners: _currentOccurrence?.roster.length ?? 1,
+        presentCount: record.status == AttendanceStatus.present ? 1 : 0,
+        isOffline: !_syncCoordinator.isOnline,
       );
 
       // Write to Firebase

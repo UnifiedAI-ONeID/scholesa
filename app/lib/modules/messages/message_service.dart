@@ -1,5 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/foundation.dart';
+import '../../services/telemetry_service.dart';
 import 'message_models.dart';
 
 /// Service for messages and notifications
@@ -8,9 +9,11 @@ class MessageService extends ChangeNotifier {
   MessageService({
     FirebaseFirestore? firestore,
     this.userId,
+    this.telemetryService,
   }) : _firestore = firestore ?? FirebaseFirestore.instance;
   final FirebaseFirestore _firestore;
   final String? userId;
+  final TelemetryService? telemetryService;
 
   List<Message> _messages = <Message>[];
   List<Conversation> _conversations = <Conversation>[];
@@ -222,7 +225,7 @@ class MessageService extends ChangeNotifier {
     String? title,
   }) async {
     try {
-      await _firestore.collection('messages').add(<String, dynamic>{
+      final DocumentReference<Map<String, dynamic>> docRef = await _firestore.collection('messages').add(<String, dynamic>{
         'senderId': userId,
         'recipientId': recipientId,
         'title': title ?? '',
@@ -232,6 +235,13 @@ class MessageService extends ChangeNotifier {
         'createdAt': Timestamp.now(),
         'isRead': false,
       });
+
+      // Track telemetry (no PII)
+      telemetryService?.trackMessageSent(
+        threadId: docRef.id,
+        hasAttachments: false,
+        isOffline: false,
+      );
       return true;
     } catch (e) {
       _error = 'Failed to send message: $e';

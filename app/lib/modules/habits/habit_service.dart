@@ -1,5 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/foundation.dart';
+import '../../services/telemetry_service.dart';
 import 'habit_models.dart';
 
 /// Service for habit tracking and coaching - LIVE DATA FROM FIREBASE
@@ -8,9 +9,11 @@ class HabitService extends ChangeNotifier {
   HabitService({
     this.learnerId,
     FirebaseFirestore? firestore,
+    this.telemetryService,
   }) : _firestore = firestore ?? FirebaseFirestore.instance;
   final FirebaseFirestore _firestore;
   final String? learnerId;
+  final TelemetryService? telemetryService;
 
   List<Habit> _habits = <Habit>[];
   List<HabitLog> _recentLogs = <HabitLog>[];
@@ -271,6 +274,12 @@ class HabitService extends ChangeNotifier {
       final int newStreak = _calculateNewStreak(habit);
       final int newLongestStreak = newStreak > habit.longestStreak ? newStreak : habit.longestStreak;
       final int newTotalCompletions = habit.totalCompletions + 1;
+
+      // Track telemetry
+      telemetryService?.trackHabitLogged(
+        habitId: habitId,
+        currentStreak: newStreak,
+      );
 
       // Update habit in Firebase
       await _firestore.collection('habits').doc(habitId).update(<String, dynamic>{

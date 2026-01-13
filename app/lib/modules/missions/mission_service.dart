@@ -1,5 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/foundation.dart';
+import '../../services/telemetry_service.dart';
 import 'mission_models.dart';
 
 /// Service for learner missions
@@ -7,8 +8,10 @@ class MissionService extends ChangeNotifier {
 
   MissionService({
     this.learnerId,
+    this.telemetryService,
   });
   final String? learnerId;
+  final TelemetryService? telemetryService;
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
 
   List<Mission> _missions = <Mission>[];
@@ -267,6 +270,14 @@ class MissionService extends ChangeNotifier {
       final int index = _missions.indexWhere((Mission m) => m.id == missionId);
       if (index == -1) return false;
 
+      final Mission mission = _missions[index];
+
+      // Track telemetry
+      telemetryService?.trackMissionStarted(
+        missionId: missionId,
+        pillar: mission.pillar.name,
+      );
+
       // Update in Firebase
       await _firestore
           .collection('missionAssignments')
@@ -345,6 +356,15 @@ class MissionService extends ChangeNotifier {
     try {
       final int index = _missions.indexWhere((Mission m) => m.id == missionId);
       if (index == -1) return false;
+
+      final Mission mission = _missions[index];
+
+      // Track telemetry
+      telemetryService?.trackMissionAttemptSubmitted(
+        missionId: missionId,
+        pillar: mission.pillar.name,
+        hasAttachments: false,
+      );
 
       // Update in Firebase
       await _firestore

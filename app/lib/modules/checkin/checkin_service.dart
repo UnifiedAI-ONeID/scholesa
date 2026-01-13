@@ -1,5 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/foundation.dart';
+import '../../services/telemetry_service.dart';
 import 'checkin_models.dart';
 
 /// Service for site check-in/check-out operations - wired to Firebase
@@ -7,8 +8,10 @@ class CheckinService extends ChangeNotifier {
 
   CheckinService({
     this.siteId,
+    this.telemetryService,
   });
   final String? siteId;
+  final TelemetryService? telemetryService;
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
 
   List<LearnerDaySummary> _learnerSummaries = <LearnerDaySummary>[];
@@ -223,6 +226,12 @@ class CheckinService extends ChangeNotifier {
         timestamp: DateTime.now(),
         status: CheckStatus.checkedIn,
         notes: notes,
+      );
+
+      // Track telemetry
+      telemetryService?.trackCheckin(
+        learnerId: learnerId,
+        isOffline: false,
       );
 
       _todayRecords = <CheckRecord>[record, ..._todayRecords];
