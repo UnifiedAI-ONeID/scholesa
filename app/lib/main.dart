@@ -24,9 +24,13 @@ import 'offline/offline_queue.dart';
 import 'offline/sync_coordinator.dart';
 import 'router/app_router.dart';
 import 'services/api_client.dart';
+import 'services/curriculum_service.dart';
+import 'services/export_service.dart';
 import 'services/firestore_service.dart';
+import 'services/identity_service.dart';
 import 'services/insights_service.dart';
 import 'services/popup_service.dart';
+import 'services/scheduling_service.dart';
 import 'services/session_bootstrap.dart';
 import 'services/telemetry_service.dart';
 import 'ui/theme/scholesa_theme.dart';
@@ -299,6 +303,51 @@ class _ScholesaAppState extends State<ScholesaApp> {
             return IncidentService(
               userId: appState.userId,
               siteId: appState.activeSiteId,
+              telemetryService: _telemetryService,
+            );
+          },
+        ),
+        // Export services - audit/compliance (docs/43) (✅ telemetry)
+        ChangeNotifierProxyProvider<AppState, ExportService>(
+          create: (_) => ExportService(telemetryService: _telemetryService),
+          update: (_, AppState appState, ExportService? previous) {
+            return ExportService(
+              userId: appState.userId,
+              siteId: appState.activeSiteId,
+              userRole: appState.role?.name,
+              telemetryService: _telemetryService,
+            );
+          },
+        ),
+        // Identity services - matching/resolution (docs/46) (✅ telemetry)
+        ChangeNotifierProxyProvider<AppState, IdentityService>(
+          create: (_) => IdentityService(telemetryService: _telemetryService),
+          update: (_, AppState appState, IdentityService? previous) {
+            return IdentityService(
+              userId: appState.userId,
+              siteId: appState.activeSiteId,
+              userRole: appState.role?.name,
+              telemetryService: _telemetryService,
+            );
+          },
+        ),
+        // Scheduling services - calendar/rooms (docs/44) (✅ telemetry)
+        ChangeNotifierProxyProvider<AppState, SchedulingService>(
+          create: (_) => SchedulingService(telemetryService: _telemetryService),
+          update: (_, AppState appState, SchedulingService? previous) {
+            return SchedulingService(
+              userId: appState.userId,
+              siteId: appState.activeSiteId,
+              telemetryService: _telemetryService,
+            );
+          },
+        ),
+        // Curriculum services - versioning/rubrics (docs/45) (✅ telemetry)
+        ChangeNotifierProxyProvider<AppState, CurriculumService>(
+          create: (_) => CurriculumService(telemetryService: _telemetryService),
+          update: (_, AppState appState, CurriculumService? previous) {
+            return CurriculumService(
+              educatorId: appState.userId,
               telemetryService: _telemetryService,
             );
           },

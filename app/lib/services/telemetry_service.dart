@@ -476,4 +476,142 @@ class TelemetryService {
       'reason': reason,
     });
   }
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // CURRICULUM/RUBRIC EVENTS (from docs/45)
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  /// Track mission snapshot created
+  Future<void> trackMissionSnapshotCreated({
+    required String missionId,
+    required String snapshotId,
+    required String pillar,
+  }) async {
+    await logEvent('mission.snapshot.created', metadata: <String, dynamic>{
+      'missionId': missionId,
+      'snapshotId': snapshotId,
+      'pillar': pillar,
+    });
+  }
+
+  /// Track rubric applied to mission attempt
+  Future<void> trackRubricApplied({
+    required String attemptId,
+    required String rubricId,
+    required int totalScore,
+  }) async {
+    await logEvent('rubric.applied', metadata: <String, dynamic>{
+      'attemptId': attemptId,
+      'rubricId': rubricId,
+      'totalScore': totalScore,
+    });
+  }
+
+  /// Track rubric shared to parent summary
+  Future<void> trackRubricSharedToParent({
+    required String attemptId,
+    required String rubricId,
+    required String learnerId,
+  }) async {
+    await logEvent('rubric.shared_to_parent_summary', metadata: <String, dynamic>{
+      'attemptId': attemptId,
+      'rubricId': rubricId,
+      'learnerId': learnerId,
+    });
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // EXPORT EVENTS (from docs/43)
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  /// Track data export requested
+  Future<void> trackExportRequested({
+    required String exportType, // 'csv_roster', 'json_full', 'artifact_manifest'
+    required String scope, // 'site', 'organization'
+    String? siteId,
+  }) async {
+    await logEvent('export.requested', metadata: <String, dynamic>{
+      'exportType': exportType,
+      'scope': scope,
+      'siteId': siteId,
+    });
+  }
+
+  /// Track export download completed
+  Future<void> trackExportDownloaded({
+    required String exportId,
+    required String exportType,
+  }) async {
+    await logEvent('export.downloaded', metadata: <String, dynamic>{
+      'exportId': exportId,
+      'exportType': exportType,
+    });
+  }
+
+  /// Track deletion request
+  Future<void> trackDeletionRequested({
+    required String targetType, // 'learner', 'site'
+    required String targetId,
+    required String stage, // 'soft_delete', 'hard_delete_scheduled', 'hard_delete_completed'
+  }) async {
+    await logEvent('deletion.requested', metadata: <String, dynamic>{
+      'targetType': targetType,
+      'targetId': targetId,
+      'stage': stage,
+    });
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // IDENTITY MATCHING EVENTS (from docs/46)
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  /// Track identity match suggested
+  Future<void> trackIdentityMatchSuggested({
+    required String localUserId,
+    required String externalProvider,
+    required double confidence,
+  }) async {
+    await logEvent('identity.match.suggested', metadata: <String, dynamic>{
+      'localUserId': localUserId,
+      'externalProvider': externalProvider,
+      'confidence': confidence,
+    });
+  }
+
+  /// Track identity match confirmed
+  Future<void> trackIdentityMatchConfirmed({
+    required String localUserId,
+    required String externalProvider,
+    required String externalUserId,
+  }) async {
+    await logEvent('identity.match.confirmed', metadata: <String, dynamic>{
+      'localUserId': localUserId,
+      'externalProvider': externalProvider,
+      'externalUserId': externalUserId,
+    });
+  }
+
+  /// Track identity match rejected/ignored
+  Future<void> trackIdentityMatchRejected({
+    required String localUserId,
+    required String externalProvider,
+    required String reason, // 'not_same_person', 'ignore'
+  }) async {
+    await logEvent('identity.match.rejected', metadata: <String, dynamic>{
+      'localUserId': localUserId,
+      'externalProvider': externalProvider,
+      'reason': reason,
+    });
+  }
+
+  /// Track user merge
+  Future<void> trackUserMerge({
+    required String primaryUserId,
+    required String mergedUserId,
+  }) async {
+    await logEvent('identity.user.merged', metadata: <String, dynamic>{
+      'primaryUserId': primaryUserId,
+      'mergedUserId': mergedUserId,
+    });
+  }
 }
