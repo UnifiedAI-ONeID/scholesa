@@ -18,13 +18,13 @@ class CreateDemoUserVariablesBuilder {
 
 @immutable
 class CreateDemoUserUserInsert {
+  CreateDemoUserUserInsert.fromJson(dynamic json):
+  
+  id = nativeFromJson<String>(json['id']);
 
   CreateDemoUserUserInsert({
     required this.id,
   });
-  CreateDemoUserUserInsert.fromJson(dynamic json):
-  
-  id = nativeFromJson<String>(json['id']);
   final String id;
   @override
   bool operator ==(Object other) {
@@ -52,13 +52,13 @@ class CreateDemoUserUserInsert {
 
 @immutable
 class CreateDemoUserData {
+  CreateDemoUserData.fromJson(dynamic json):
+  
+  user_insert = CreateDemoUserUserInsert.fromJson(json['user_insert']);
 
   CreateDemoUserData({
     required this.user_insert,
   });
-  CreateDemoUserData.fromJson(dynamic json):
-  
-  user_insert = CreateDemoUserUserInsert.fromJson(json['user_insert']);
   final CreateDemoUserUserInsert user_insert;
   @override
   bool operator ==(Object other) {

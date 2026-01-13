@@ -336,7 +336,6 @@ class UserAdminService extends ChangeNotifier {
           email: email,
           displayName: displayName,
           role: role,
-          status: UserStatus.active,
           siteIds: siteIds,
           createdAt: now,
         );

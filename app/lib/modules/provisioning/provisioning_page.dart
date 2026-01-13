@@ -187,8 +187,8 @@ class _LearnersTab extends StatelessWidget {
             onTap: () {
               Navigator.pop(context);
               ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(
-                  content: const Text('Edit learner feature coming soon'),
+                const SnackBar(
+                  content: Text('Edit learner feature coming soon'),
                   backgroundColor: ScholesaColors.site,
                 ),
               );
@@ -200,8 +200,8 @@ class _LearnersTab extends StatelessWidget {
             onTap: () {
               Navigator.pop(context);
               ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(
-                  content: const Text('Guardian link management coming soon'),
+                const SnackBar(
+                  content: Text('Guardian link management coming soon'),
                   backgroundColor: ScholesaColors.site,
                 ),
               );
@@ -285,8 +285,8 @@ class _ParentsTab extends StatelessWidget {
             onTap: () {
               Navigator.pop(context);
               ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(
-                  content: const Text('Edit parent feature coming soon'),
+                const SnackBar(
+                  content: Text('Edit parent feature coming soon'),
                   backgroundColor: ScholesaColors.site,
                 ),
               );
@@ -298,8 +298,8 @@ class _ParentsTab extends StatelessWidget {
             onTap: () {
               Navigator.pop(context);
               ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(
-                  content: const Text('Learner link management coming soon'),
+                const SnackBar(
+                  content: Text('Learner link management coming soon'),
                   backgroundColor: ScholesaColors.site,
                 ),
               );

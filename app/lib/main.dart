@@ -24,6 +24,7 @@ import 'router/app_router.dart';
 import 'services/api_client.dart';
 import 'services/firestore_service.dart';
 import 'services/session_bootstrap.dart';
+import 'services/telemetry_service.dart';
 import 'ui/theme/scholesa_theme.dart';
 
 void main() async {
@@ -68,6 +69,7 @@ class _ScholesaAppState extends State<ScholesaApp> {
   late final SyncCoordinator _syncCoordinator;
   late final AuthService _authService;
   late final SessionBootstrap _sessionBootstrap;
+  late final TelemetryService _telemetryService;
 
   bool _isInitialized = false;
   String? _initError;
@@ -85,6 +87,7 @@ class _ScholesaAppState extends State<ScholesaApp> {
       _apiClient = ApiClient();
       _firestoreService = FirestoreService();
       _offlineQueue = OfflineQueue();
+      _telemetryService = TelemetryService();
       
       // Initialize offline queue
       await _offlineQueue.init();
@@ -170,6 +173,7 @@ class _ScholesaAppState extends State<ScholesaApp> {
         Provider.value(value: _apiClient),
         Provider.value(value: _firestoreService),
         Provider.value(value: _authService),
+        Provider.value(value: _telemetryService),
         // HQ Admin services - uses authenticated user for audit logging
         ChangeNotifierProxyProvider<AppState, UserAdminService>(
           create: (_) => UserAdminService(),

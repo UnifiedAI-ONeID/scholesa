@@ -270,6 +270,14 @@ GoRouter createAppRouter(AppState appState) {
           child: EducatorMissionReviewPage(),
         ),
       ),
+      // Alias route for review-queue (same as missions/review)
+      GoRoute(
+        path: '/educator/review-queue',
+        builder: (BuildContext context, GoRouterState state) => const RoleGate(
+          allowedRoles: <UserRole>[UserRole.educator, UserRole.site, UserRole.hq],
+          child: EducatorMissionReviewPage(),
+        ),
+      ),
       
       // Site routes
       GoRoute(

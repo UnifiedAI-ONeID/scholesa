@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 import '../../auth/auth_service.dart';
+import '../../services/telemetry_service.dart';
 import '../theme/scholesa_theme.dart';
 
 class LoginPage extends StatefulWidget {
@@ -59,7 +60,9 @@ class _LoginPageState extends State<LoginPage> with SingleTickerProviderStateMix
         password: _passwordController.text,
       );
       
+      // Track successful login
       if (mounted) {
+        context.read<TelemetryService>().trackLogin(method: 'email');
         context.go('/');
       }
     } catch (e) {
@@ -123,7 +126,7 @@ class _LoginPageState extends State<LoginPage> with SingleTickerProviderStateMix
                 } catch (e) {
                   if (context.mounted) {
                     ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(content: Text('Error: ${e.toString()}')),
+                      SnackBar(content: Text('Error: $e')),
                     );
                   }
                 }
