@@ -18,6 +18,7 @@ import 'modules/hq_admin/hq_admin.dart';
 import 'modules/messages/messages.dart';
 import 'modules/missions/missions.dart';
 import 'modules/parent/parent.dart';
+import 'modules/partner/partner.dart';
 import 'offline/offline_queue.dart';
 import 'offline/sync_coordinator.dart';
 import 'router/app_router.dart';
@@ -231,12 +232,13 @@ class _ScholesaAppState extends State<ScholesaApp> {
             return ParentService(parentId: appState.userId);
           },
         ),
-        // Educator services - uses authenticated user's ID
+        // Educator services - uses authenticated user's ID (✅ telemetry for insights/supports)
         ChangeNotifierProxyProvider<AppState, EducatorService>(
-          create: (_) => EducatorService(),
+          create: (_) => EducatorService(telemetryService: _telemetryService),
           update: (_, AppState appState, EducatorService? previous) {
             return EducatorService(
               educatorId: appState.userId,
+              telemetryService: _telemetryService,
             );
           },
         ),
@@ -251,6 +253,16 @@ class _ScholesaAppState extends State<ScholesaApp> {
               syncCoordinator: _syncCoordinator,
               educatorId: appState.userId,
               siteId: appState.activeSiteId,
+              telemetryService: _telemetryService,
+            );
+          },
+        ),
+        // Partner services - uses authenticated user's ID (✅ telemetry for deliverables/payouts)
+        ChangeNotifierProxyProvider<AppState, PartnerService>(
+          create: (_) => PartnerService(partnerId: '', telemetryService: _telemetryService),
+          update: (_, AppState appState, PartnerService? previous) {
+            return PartnerService(
+              partnerId: appState.userId ?? '',
               telemetryService: _telemetryService,
             );
           },

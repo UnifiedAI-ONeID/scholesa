@@ -1,13 +1,18 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/foundation.dart';
+import '../../services/telemetry_service.dart';
 import 'partner_models.dart';
 
 /// Service for partner operations - marketplace listings, contracts, and payouts.
 /// Based on docs/16_PARTNER_CONTRACTING_WORKFLOWS_SPEC.md
 class PartnerService extends ChangeNotifier {
-  PartnerService({required this.partnerId});
+  PartnerService({
+    required this.partnerId,
+    this.telemetryService,
+  });
 
   final String partnerId;
+  final TelemetryService? telemetryService;
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
 
   // State
@@ -206,6 +211,12 @@ class PartnerService extends ChangeNotifier {
         'submittedAt': FieldValue.serverTimestamp(),
       });
 
+      // Track telemetry (docs/16 - Partner deliverables)
+      telemetryService?.trackDeliverableSubmitted(
+        contractId: contractId,
+        deliverableId: deliverableId,
+      );
+
       await loadContracts();
       return true;
     } catch (e) {
@@ -267,7 +278,7 @@ class PartnerService extends ChangeNotifier {
     String? notes,
   }) async {
     try {
-      await _firestore.collection('payouts').add(<String, dynamic>{
+      final DocumentReference<Map<String, dynamic>> docRef = await _firestore.collection('payouts').add(<String, dynamic>{
         'partnerId': partnerId,
         'amount': amount,
         'status': PayoutStatus.pending.name,
@@ -275,6 +286,14 @@ class PartnerService extends ChangeNotifier {
         'notes': notes,
         'requestedAt': FieldValue.serverTimestamp(),
       });
+
+      // Track telemetry (docs/16 - Partner payouts)
+      telemetryService?.trackPayoutProcessed(
+        payoutId: docRef.id,
+        status: PayoutStatus.pending.name,
+        amount: amount,
+      );
+
       await loadPayouts();
       return true;
     } catch (e) {

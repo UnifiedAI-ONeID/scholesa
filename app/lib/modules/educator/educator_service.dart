@@ -1,5 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/foundation.dart';
+import '../../services/telemetry_service.dart';
 import 'educator_models.dart';
 
 /// Service for educator-specific features - wired to Firebase
@@ -7,8 +8,10 @@ class EducatorService extends ChangeNotifier {
 
   EducatorService({
     this.educatorId,
+    this.telemetryService,
   });
   final String? educatorId;
+  final TelemetryService? telemetryService;
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
 
   List<TodayClass> _todayClasses = <TodayClass>[];
@@ -263,6 +266,84 @@ class EducatorService extends ChangeNotifier {
     } finally {
       _isLoading = false;
       notifyListeners();
+    }
+  }
+
+  // ========== Learner Intelligence & Supports (docs/22, 23) ==========
+
+  /// Track when educator views learner insights
+  void trackInsightViewed({
+    required String insightType,
+    required String learnerId,
+  }) {
+    telemetryService?.trackInsightViewed(
+      insightType: insightType,
+      learnerId: learnerId,
+    );
+  }
+
+  /// Track when educator applies a support strategy
+  Future<bool> applySupport({
+    required String learnerId,
+    required String supportType,
+    String? notes,
+  }) async {
+    try {
+      // Log support application to Firestore
+      await _firestore.collection('supportApplications').add(<String, dynamic>{
+        'educatorId': educatorId,
+        'learnerId': learnerId,
+        'supportType': supportType,
+        'notes': notes,
+        'appliedAt': FieldValue.serverTimestamp(),
+      });
+
+      // Track telemetry
+      telemetryService?.trackSupportApplied(
+        supportType: supportType,
+        learnerId: learnerId,
+      );
+
+      notifyListeners();
+      return true;
+    } catch (e) {
+      _error = 'Failed to apply support: $e';
+      notifyListeners();
+      return false;
+    }
+  }
+
+  /// Track support outcome (what worked)
+  Future<bool> logSupportOutcome({
+    required String learnerId,
+    required String supportType,
+    required String outcome, // 'helped', 'did_not_help', 'needs_adjustment'
+    String? notes,
+  }) async {
+    try {
+      // Log outcome to Firestore
+      await _firestore.collection('supportOutcomes').add(<String, dynamic>{
+        'educatorId': educatorId,
+        'learnerId': learnerId,
+        'supportType': supportType,
+        'outcome': outcome,
+        'notes': notes,
+        'loggedAt': FieldValue.serverTimestamp(),
+      });
+
+      // Track telemetry
+      telemetryService?.trackSupportOutcomeLogged(
+        supportType: supportType,
+        outcome: outcome,
+        learnerId: learnerId,
+      );
+
+      notifyListeners();
+      return true;
+    } catch (e) {
+      _error = 'Failed to log support outcome: $e';
+      notifyListeners();
+      return false;
     }
   }
 }
