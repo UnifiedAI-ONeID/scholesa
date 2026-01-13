@@ -19,6 +19,7 @@ import 'modules/messages/messages.dart';
 import 'modules/missions/missions.dart';
 import 'modules/parent/parent.dart';
 import 'modules/partner/partner.dart';
+import 'modules/site/incident_service.dart';
 import 'offline/offline_queue.dart';
 import 'offline/sync_coordinator.dart';
 import 'router/app_router.dart';
@@ -286,6 +287,17 @@ class _ScholesaAppState extends State<ScholesaApp> {
           update: (_, AppState appState, InsightsService? previous) {
             return InsightsService(
               educatorId: appState.userId,
+              siteId: appState.activeSiteId,
+              telemetryService: _telemetryService,
+            );
+          },
+        ),
+        // Incident services - uses authenticated user's ID and site (✅ telemetry for safety)
+        ChangeNotifierProxyProvider<AppState, IncidentService>(
+          create: (_) => IncidentService(telemetryService: _telemetryService),
+          update: (_, AppState appState, IncidentService? previous) {
+            return IncidentService(
+              userId: appState.userId,
               siteId: appState.activeSiteId,
               telemetryService: _telemetryService,
             );

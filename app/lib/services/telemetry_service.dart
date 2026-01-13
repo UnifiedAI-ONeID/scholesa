@@ -387,4 +387,93 @@ class TelemetryService {
       'amount': amount,
     });
   }
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // SCHEDULING EVENTS (from docs/44)
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  /// Track schedule viewed
+  Future<void> trackScheduleViewed({
+    required String viewType, // 'day', 'week'
+    String? siteId,
+  }) async {
+    await logEvent('schedule.viewed', metadata: <String, dynamic>{
+      'viewType': viewType,
+      'siteId': siteId,
+    });
+  }
+
+  /// Track room conflict detected
+  Future<void> trackRoomConflictDetected({
+    required String roomId,
+    required String conflictType, // 'double_booked', 'educator_overlap'
+  }) async {
+    await logEvent('room.conflict.detected', metadata: <String, dynamic>{
+      'roomId': roomId,
+      'conflictType': conflictType,
+    });
+  }
+
+  /// Track substitute requested
+  Future<void> trackSubstituteRequested({
+    required String sessionOccurrenceId,
+    required String requestingEducatorId,
+  }) async {
+    await logEvent('substitute.requested', metadata: <String, dynamic>{
+      'sessionOccurrenceId': sessionOccurrenceId,
+      'requestingEducatorId': requestingEducatorId,
+    });
+  }
+
+  /// Track substitute assigned
+  Future<void> trackSubstituteAssigned({
+    required String sessionOccurrenceId,
+    required String substituteEducatorId,
+  }) async {
+    await logEvent('substitute.assigned', metadata: <String, dynamic>{
+      'sessionOccurrenceId': sessionOccurrenceId,
+      'substituteEducatorId': substituteEducatorId,
+    });
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // INCIDENT EVENTS (from docs/41)
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  /// Track incident created
+  Future<void> trackIncidentCreated({
+    required String incidentId,
+    required String severity, // 'minor', 'major', 'critical'
+    required String category,
+  }) async {
+    await logEvent('incident.created', metadata: <String, dynamic>{
+      'incidentId': incidentId,
+      'severity': severity,
+      'category': category,
+    });
+  }
+
+  /// Track incident status changed
+  Future<void> trackIncidentStatusChanged({
+    required String incidentId,
+    required String fromStatus,
+    required String toStatus,
+  }) async {
+    await logEvent('incident.status.changed', metadata: <String, dynamic>{
+      'incidentId': incidentId,
+      'fromStatus': fromStatus,
+      'toStatus': toStatus,
+    });
+  }
+
+  /// Track message reported
+  Future<void> trackMessageReported({
+    required String messageId,
+    required String reason,
+  }) async {
+    await logEvent('message.reported', metadata: <String, dynamic>{
+      'messageId': messageId,
+      'reason': reason,
+    });
+  }
 }
