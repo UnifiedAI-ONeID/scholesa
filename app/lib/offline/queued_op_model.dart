@@ -25,7 +25,8 @@ enum OpType {
 /// Single queued operation stored in Isar
 @collection
 class QueuedOpModel {
-  Id isarId = Isar.autoIncrement;
+  /// Use nullable Id for auto-increment (avoids large int literal issue on web)
+  Id? isarId;
 
   @Index(unique: true)
   late String opId;

@@ -213,7 +213,7 @@ const _QueuedOpModeltypeValueEnumMap = {
 };
 
 Id _queuedOpModelGetId(QueuedOpModel object) {
-  return object.isarId;
+  return object.isarId ?? Isar.autoIncrement;
 }
 
 List<IsarLinkBase<dynamic>> _queuedOpModelGetLinks(QueuedOpModel object) {
@@ -618,7 +618,25 @@ extension QueuedOpModelQueryFilter
   }
 
   QueryBuilder<QueuedOpModel, QueuedOpModel, QAfterFilterCondition>
-      isarIdEqualTo(Id value) {
+      isarIdIsNull() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(const FilterCondition.isNull(
+        property: r'isarId',
+      ));
+    });
+  }
+
+  QueryBuilder<QueuedOpModel, QueuedOpModel, QAfterFilterCondition>
+      isarIdIsNotNull() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(const FilterCondition.isNotNull(
+        property: r'isarId',
+      ));
+    });
+  }
+
+  QueryBuilder<QueuedOpModel, QueuedOpModel, QAfterFilterCondition>
+      isarIdEqualTo(Id? value) {
     return QueryBuilder.apply(this, (query) {
       return query.addFilterCondition(FilterCondition.equalTo(
         property: r'isarId',
@@ -629,7 +647,7 @@ extension QueuedOpModelQueryFilter
 
   QueryBuilder<QueuedOpModel, QueuedOpModel, QAfterFilterCondition>
       isarIdGreaterThan(
-    Id value, {
+    Id? value, {
     bool include = false,
   }) {
     return QueryBuilder.apply(this, (query) {
@@ -643,7 +661,7 @@ extension QueuedOpModelQueryFilter
 
   QueryBuilder<QueuedOpModel, QueuedOpModel, QAfterFilterCondition>
       isarIdLessThan(
-    Id value, {
+    Id? value, {
     bool include = false,
   }) {
     return QueryBuilder.apply(this, (query) {
@@ -657,8 +675,8 @@ extension QueuedOpModelQueryFilter
 
   QueryBuilder<QueuedOpModel, QueuedOpModel, QAfterFilterCondition>
       isarIdBetween(
-    Id lower,
-    Id upper, {
+    Id? lower,
+    Id? upper, {
     bool includeLower = true,
     bool includeUpper = true,
   }) {
