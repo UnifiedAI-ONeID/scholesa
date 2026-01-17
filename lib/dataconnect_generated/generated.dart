@@ -1,15 +1,13 @@
 library dataconnect_generated;
-import 'package:firebase_data_connect/firebase_data_connect.dart';
-import 'package:flutter/foundation.dart';
 import 'dart:convert';
 
+import 'package:firebase_data_connect/firebase_data_connect.dart';
+import 'package:flutter/foundation.dart';
+
 part 'create_demo_user.dart';
-
 part 'list_all_teams.dart';
-
-part 'update_player_jersey_number.dart';
-
 part 'list_my_teams.dart';
+part 'update_player_jersey_number.dart';
 
 
 
