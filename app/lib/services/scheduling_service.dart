@@ -1,7 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/foundation.dart';
 
-import '../auth/app_state.dart';
 import '../services/telemetry_service.dart';
 
 /// Scheduling service for sessions, rooms, and substitutes

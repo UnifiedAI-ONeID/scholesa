@@ -363,7 +363,6 @@ class MissionService extends ChangeNotifier {
       telemetryService?.trackMissionAttemptSubmitted(
         missionId: missionId,
         pillar: mission.pillar.name,
-        hasAttachments: false,
       );
 
       // Update in Firebase

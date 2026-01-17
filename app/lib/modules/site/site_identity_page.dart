@@ -323,6 +323,7 @@ class _SiteIdentityPageState extends State<SiteIdentityPage> {
   }
 }
 
+// ignore: unused_field - approved/rejected used when implementing approval workflow
 enum _MatchStatus { pending, approved, rejected }
 
 class _IdentityMatch {

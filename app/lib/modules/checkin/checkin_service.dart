@@ -231,7 +231,6 @@ class CheckinService extends ChangeNotifier {
       // Track telemetry
       telemetryService?.trackCheckin(
         learnerId: learnerId,
-        isOffline: false,
       );
 
       _todayRecords = <CheckRecord>[record, ..._todayRecords];
@@ -311,7 +310,6 @@ class CheckinService extends ChangeNotifier {
       telemetryService?.trackCheckout(
         learnerId: learnerId,
         sessionDuration: sessionDuration ?? const Duration(hours: 1),
-        isOffline: false,
       );
 
       _todayRecords = <CheckRecord>[record, ..._todayRecords];

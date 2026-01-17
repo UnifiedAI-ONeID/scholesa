@@ -1,10 +1,10 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
-import 'package:go_router/src/router.dart';
+import 'package:go_router/go_router.dart';
 import 'package:hive_flutter/hive_flutter.dart';
-import 'package:nested/nested.dart';
 import 'package:provider/provider.dart';
+import 'package:provider/single_child_widget.dart';
 
 import 'app_config.dart';
 import 'auth/app_state.dart';
@@ -26,6 +26,8 @@ import 'offline/sync_coordinator.dart';
 import 'router/app_router.dart';
 import 'services/ai_draft_service.dart';
 import 'services/api_client.dart';
+import 'services/approval_service.dart';
+import 'services/audit_log_service.dart';
 import 'services/billing_service.dart';
 import 'services/cms_service.dart';
 import 'services/curriculum_service.dart';
@@ -38,12 +40,10 @@ import 'services/marketplace_service.dart';
 import 'services/notification_service.dart';
 import 'services/popup_service.dart';
 import 'services/portfolio_service.dart';
+import 'services/safety_service.dart';
 import 'services/scheduling_service.dart';
 import 'services/session_bootstrap.dart';
 import 'services/telemetry_service.dart';
-import 'services/safety_service.dart';
-import 'services/audit_log_service.dart';
-import 'services/approval_service.dart';
 import 'ui/theme/scholesa_theme.dart';
 
 void main() async {

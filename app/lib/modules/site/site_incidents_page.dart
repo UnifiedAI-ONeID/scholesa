@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import '../../ui/theme/scholesa_theme.dart';
+
 import '../../services/telemetry_service.dart';
+import '../../ui/theme/scholesa_theme.dart';
 import 'incident_service.dart';
 
 /// Site incidents management page

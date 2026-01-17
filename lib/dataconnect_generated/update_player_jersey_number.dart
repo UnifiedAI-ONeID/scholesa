@@ -20,13 +20,13 @@ class UpdatePlayerJerseyNumberVariablesBuilder {
 
 @immutable
 class UpdatePlayerJerseyNumberPlayerUpdate {
-  UpdatePlayerJerseyNumberPlayerUpdate.fromJson(dynamic json):
-  
-  id = nativeFromJson<String>(json['id']);
 
   UpdatePlayerJerseyNumberPlayerUpdate({
     required this.id,
   });
+  UpdatePlayerJerseyNumberPlayerUpdate.fromJson(dynamic json):
+  
+  id = nativeFromJson<String>(json['id']);
   final String id;
   @override
   bool operator ==(Object other) {
@@ -54,13 +54,13 @@ class UpdatePlayerJerseyNumberPlayerUpdate {
 
 @immutable
 class UpdatePlayerJerseyNumberData {
-  UpdatePlayerJerseyNumberData.fromJson(dynamic json):
-  
-  player_update = json['player_update'] == null ? null : UpdatePlayerJerseyNumberPlayerUpdate.fromJson(json['player_update']);
 
   UpdatePlayerJerseyNumberData({
     this.player_update,
   });
+  UpdatePlayerJerseyNumberData.fromJson(dynamic json):
+  
+  player_update = json['player_update'] == null ? null : UpdatePlayerJerseyNumberPlayerUpdate.fromJson(json['player_update']);
   final UpdatePlayerJerseyNumberPlayerUpdate? player_update;
   @override
   bool operator ==(Object other) {
@@ -90,16 +90,16 @@ class UpdatePlayerJerseyNumberData {
 
 @immutable
 class UpdatePlayerJerseyNumberVariables {
-  @Deprecated('fromJson is deprecated for Variable classes as they are no longer required for deserialization.')
-  UpdatePlayerJerseyNumberVariables.fromJson(Map<String, dynamic> json):
-  
-  id = nativeFromJson<String>(json['id']),
-  jerseyNumber = nativeFromJson<int>(json['jerseyNumber']);
 
   UpdatePlayerJerseyNumberVariables({
     required this.id,
     required this.jerseyNumber,
   });
+  @Deprecated('fromJson is deprecated for Variable classes as they are no longer required for deserialization.')
+  UpdatePlayerJerseyNumberVariables.fromJson(Map<String, dynamic> json):
+  
+  id = nativeFromJson<String>(json['id']),
+  jerseyNumber = nativeFromJson<int>(json['jerseyNumber']);
   final String id;
   final int jerseyNumber;
   @override

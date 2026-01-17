@@ -16,7 +16,7 @@ class CurriculumService extends ChangeNotifier {
   final String? educatorId;
   final FirebaseFirestore _firestore;
 
-  List<MissionSnapshot> _snapshots = <MissionSnapshot>[];
+  final List<MissionSnapshot> _snapshots = <MissionSnapshot>[];
   List<Rubric> _rubrics = <Rubric>[];
   bool _isLoading = false;
   String? _error;

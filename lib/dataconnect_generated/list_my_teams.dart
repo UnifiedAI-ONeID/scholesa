@@ -18,17 +18,17 @@ class ListMyTeamsVariablesBuilder {
 
 @immutable
 class ListMyTeamsTeams {
-  ListMyTeamsTeams.fromJson(dynamic json):
-  
-  id = nativeFromJson<String>(json['id']),
-  name = nativeFromJson<String>(json['name']),
-  description = json['description'] == null ? null : nativeFromJson<String>(json['description']);
 
   ListMyTeamsTeams({
     required this.id,
     required this.name,
     this.description,
   });
+  ListMyTeamsTeams.fromJson(dynamic json):
+  
+  id = nativeFromJson<String>(json['id']),
+  name = nativeFromJson<String>(json['name']),
+  description = json['description'] == null ? null : nativeFromJson<String>(json['description']);
   final String id;
   final String name;
   final String? description;
@@ -64,15 +64,15 @@ class ListMyTeamsTeams {
 
 @immutable
 class ListMyTeamsData {
+
+  ListMyTeamsData({
+    required this.teams,
+  });
   ListMyTeamsData.fromJson(dynamic json):
   
   teams = (json['teams'] as List<dynamic>)
         .map((e) => ListMyTeamsTeams.fromJson(e))
         .toList();
-
-  ListMyTeamsData({
-    required this.teams,
-  });
   final List<ListMyTeamsTeams> teams;
   @override
   bool operator ==(Object other) {

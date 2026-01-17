@@ -216,6 +216,31 @@ enum IncidentSeverity { minor, major, critical }
 enum IncidentStatus { submitted, reviewed, closed }
 
 class Incident {
+
+  factory Incident.fromMap(String id, Map<String, dynamic> data) {
+    return Incident(
+      id: id,
+      siteId: data['siteId'] as String? ?? '',
+      title: data['title'] as String? ?? 'Untitled',
+      description: data['description'] as String? ?? '',
+      severity: IncidentSeverity.values.firstWhere(
+        (IncidentSeverity s) => s.name == data['severity'],
+        orElse: () => IncidentSeverity.minor,
+      ),
+      category: data['category'] as String? ?? 'other',
+      status: IncidentStatus.values.firstWhere(
+        (IncidentStatus s) => s.name == data['status'],
+        orElse: () => IncidentStatus.submitted,
+      ),
+      learnerId: data['learnerId'] as String? ?? '',
+      learnerName: data['learnerName'] as String? ?? 'Unknown',
+      reportedBy: data['reportedBy'] as String? ?? '',
+      reportedAt: _parseTimestamp(data['reportedAt']) ?? DateTime.now(),
+      statusNotes: data['statusNotes'] as String?,
+      statusUpdatedAt: _parseTimestamp(data['statusUpdatedAt']),
+      statusUpdatedBy: data['statusUpdatedBy'] as String?,
+    );
+  }
   const Incident({
     required this.id,
     required this.siteId,
@@ -247,31 +272,6 @@ class Incident {
   final String? statusNotes;
   final DateTime? statusUpdatedAt;
   final String? statusUpdatedBy;
-
-  factory Incident.fromMap(String id, Map<String, dynamic> data) {
-    return Incident(
-      id: id,
-      siteId: data['siteId'] as String? ?? '',
-      title: data['title'] as String? ?? 'Untitled',
-      description: data['description'] as String? ?? '',
-      severity: IncidentSeverity.values.firstWhere(
-        (IncidentSeverity s) => s.name == data['severity'],
-        orElse: () => IncidentSeverity.minor,
-      ),
-      category: data['category'] as String? ?? 'other',
-      status: IncidentStatus.values.firstWhere(
-        (IncidentStatus s) => s.name == data['status'],
-        orElse: () => IncidentStatus.submitted,
-      ),
-      learnerId: data['learnerId'] as String? ?? '',
-      learnerName: data['learnerName'] as String? ?? 'Unknown',
-      reportedBy: data['reportedBy'] as String? ?? '',
-      reportedAt: _parseTimestamp(data['reportedAt']) ?? DateTime.now(),
-      statusNotes: data['statusNotes'] as String?,
-      statusUpdatedAt: _parseTimestamp(data['statusUpdatedAt']),
-      statusUpdatedBy: data['statusUpdatedBy'] as String?,
-    );
-  }
 
   static DateTime? _parseTimestamp(dynamic value) {
     if (value == null) return null;

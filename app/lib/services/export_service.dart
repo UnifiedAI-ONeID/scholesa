@@ -159,7 +159,7 @@ class ExportService extends ChangeNotifier {
       });
 
       // Track telemetry
-      final ExportRequest? request = _exportRequests.firstWhere(
+      final ExportRequest request = _exportRequests.firstWhere(
         (ExportRequest r) => r.id == exportId,
         orElse: () => ExportRequest(
           id: exportId,
@@ -173,7 +173,7 @@ class ExportService extends ChangeNotifier {
       
       await telemetryService.trackExportDownloaded(
         exportId: exportId,
-        exportType: request?.exportType ?? 'unknown',
+        exportType: request.exportType,
       );
     } catch (e) {
       debugPrint('ExportService.markDownloaded error: $e');

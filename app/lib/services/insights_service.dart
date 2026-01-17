@@ -25,7 +25,7 @@ class InsightsService extends ChangeNotifier {
 
   // State
   SessionInsights? _currentSessionInsights;
-  Map<String, LearnerInsight> _learnerInsights = <String, LearnerInsight>{};
+  final Map<String, LearnerInsight> _learnerInsights = <String, LearnerInsight>{};
   List<SupportIntervention> _interventions = <SupportIntervention>[];
   List<SupportStrategy> _strategies = <SupportStrategy>[];
   bool _isLoading = false;

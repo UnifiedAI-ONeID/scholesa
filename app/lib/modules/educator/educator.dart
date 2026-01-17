@@ -1,5 +1,4 @@
 /// Educator module exports
-library educator;
 
 export 'educator_integrations_page.dart';
 export 'educator_learner_supports_page.dart';

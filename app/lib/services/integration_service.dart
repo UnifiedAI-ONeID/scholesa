@@ -337,9 +337,7 @@ class SyncJob {
   bool get isRunning => status == SyncJobStatus.running;
   bool get hasFailed => status == SyncJobStatus.failed;
   
-  Duration? get duration => completedAt != null 
-      ? completedAt!.difference(startedAt)
-      : null;
+  Duration? get duration => completedAt?.difference(startedAt);
 }
 
 /// Model for external course link

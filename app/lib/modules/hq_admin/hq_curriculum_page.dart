@@ -10,6 +10,7 @@ class HqCurriculumPage extends StatefulWidget {
   State<HqCurriculumPage> createState() => _HqCurriculumPageState();
 }
 
+// ignore: unused_field - archived status used when implementing curriculum archival
 enum _CurriculumStatus { draft, review, published, archived }
 
 class _Curriculum {

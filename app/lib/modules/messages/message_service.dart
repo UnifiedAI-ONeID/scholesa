@@ -239,8 +239,6 @@ class MessageService extends ChangeNotifier {
       // Track telemetry (no PII)
       telemetryService?.trackMessageSent(
         threadId: docRef.id,
-        hasAttachments: false,
-        isOffline: false,
       );
       return true;
     } catch (e) {

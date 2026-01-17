@@ -376,6 +376,15 @@ class PickupAuthorization {
 
 /// Model for authorized person
 class AuthorizedPerson {
+
+  factory AuthorizedPerson.fromMap(Map<String, dynamic> map) {
+    return AuthorizedPerson(
+      fullName: map['fullName'] as String? ?? '',
+      relationship: map['relationship'] as String? ?? '',
+      phone: map['phone'] as String? ?? '',
+      idCheckNotes: map['idCheckNotes'] as String?,
+    );
+  }
   const AuthorizedPerson({
     required this.fullName,
     required this.relationship,
@@ -387,13 +396,4 @@ class AuthorizedPerson {
   final String relationship;
   final String phone;
   final String? idCheckNotes;
-
-  factory AuthorizedPerson.fromMap(Map<String, dynamic> map) {
-    return AuthorizedPerson(
-      fullName: map['fullName'] as String? ?? '',
-      relationship: map['relationship'] as String? ?? '',
-      phone: map['phone'] as String? ?? '',
-      idCheckNotes: map['idCheckNotes'] as String?,
-    );
-  }
 }

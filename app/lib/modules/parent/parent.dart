@@ -1,5 +1,4 @@
 /// Parent module exports
-library parent;
 
 export 'parent_billing_page.dart';
 export 'parent_models.dart';

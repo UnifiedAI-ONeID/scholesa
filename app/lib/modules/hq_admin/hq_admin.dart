@@ -1,5 +1,4 @@
 /// HQ Admin module exports
-library hq_admin;
 
 export 'hq_analytics_page.dart';
 export 'hq_approvals_page.dart';
