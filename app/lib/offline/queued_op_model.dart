@@ -47,7 +47,8 @@ class QueuedOpModel {
 
   String? lastError;
 
-  /// Helper to get payload as Map
+  /// Helper to get payload as Map (ignored by Isar)
+  @ignore
   Map<String, dynamic> get payload =>
       jsonDecode(payloadJson) as Map<String, dynamic>;
 
