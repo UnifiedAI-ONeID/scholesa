@@ -78,7 +78,7 @@ class SyncCoordinator extends ChangeNotifier {
     int failed = 0;
 
     try {
-      final List<QueuedOp> pending = _queue.getPending();
+      final List<QueuedOp> pending = await _queue.getPending();
       
       if (pending.isEmpty) {
         return SyncResult(synced: 0, failed: 0, pending: 0);
@@ -138,7 +138,8 @@ class SyncCoordinator extends ChangeNotifier {
 
   /// Force retry all failed ops
   Future<void> retryFailed() async {
-    final Iterable<QueuedOp> failed = _queue.getAll().where((QueuedOp op) => op.status == OpStatus.failed);
+    final List<QueuedOp> allOps = await _queue.getAll();
+    final Iterable<QueuedOp> failed = allOps.where((QueuedOp op) => op.status == OpStatus.failed);
     for (final QueuedOp op in failed) {
       await _queue.updateStatus(op.id, OpStatus.pending);
     }
@@ -147,7 +148,7 @@ class SyncCoordinator extends ChangeNotifier {
   }
 
   /// Get queue for inspection
-  List<QueuedOp> getQueueSnapshot() => _queue.getAll();
+  Future<List<QueuedOp>> getQueueSnapshot() => _queue.getAll();
 
   @override
   void dispose() {

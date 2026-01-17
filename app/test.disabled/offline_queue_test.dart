@@ -16,21 +16,21 @@ void main() {
       expect(op.idempotencyKey, isNotEmpty);
     });
 
-    test('converts to Isar model and back', () {
+    test('converts to Map and back', () {
       final QueuedOp op = QueuedOp(
         type: OpType.presenceCheckin,
         payload: <String, dynamic>{'siteId': 'site1', 'learnerId': 'learner1'},
       );
 
-      final model = op.toModel();
-      final QueuedOp restored = QueuedOp.fromModel(model);
+      final map = op.toMap();
+      final QueuedOp restored = QueuedOp.fromMap(map);
 
       expect(restored.type, equals(OpType.presenceCheckin));
       expect(restored.payload['siteId'], equals('site1'));
       expect(restored.status, equals(OpStatus.pending));
     });
 
-    test('preserves all fields through model conversion', () {
+    test('preserves all fields through map conversion', () {
       final QueuedOp op = QueuedOp(
         id: 'op123',
         type: OpType.attendanceRecord,
@@ -41,8 +41,8 @@ void main() {
         lastError: 'Some error',
       );
 
-      final model = op.toModel();
-      final QueuedOp restored = QueuedOp.fromModel(model);
+      final map = op.toMap();
+      final QueuedOp restored = QueuedOp.fromMap(map);
 
       expect(restored.id, equals('op123'));
       expect(restored.type, equals(OpType.attendanceRecord));

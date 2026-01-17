@@ -27,7 +27,7 @@ Future<Database> initSembast() async {
   } else {
     // Use file-based storage on mobile/desktop
     final dir = await getApplicationDocumentsDirectory();
-    final dbPath = join(dir.path, 'scholesa_db.db');
+    final dbPath = '${dir.path}/scholesa_db.db';
     final factory = databaseFactoryIo;
     _dbInstance = await factory.openDatabase(dbPath);
   }
