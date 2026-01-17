@@ -166,13 +166,11 @@ class OfflineQueue {
 
   /// Get pending count
   Future<int> getPendingCount() async {
-    final Finder finder = Finder(
-      filter: Filter.or(<Filter>[
+    final Filter filter = Filter.or(<Filter>[
         Filter.equals('status', OpStatus.pending.name),
         Filter.equals('status', OpStatus.failed.name),
-      ]),
-    );
-    return await _store.count(_db, filter: finder.filter);
+      ]);
+    return await _store.count(_db, filter: filter);
   }
 
   /// Sync getter for pending count (returns 0 if not yet loaded, use getPendingCount() for accuracy)

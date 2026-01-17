@@ -20,7 +20,7 @@ import 'modules/parent/parent.dart';
 import 'modules/partner/partner.dart';
 import 'modules/provisioning/provisioning_service.dart';
 import 'modules/site/incident_service.dart';
-import 'offline/isar_init.dart';
+import 'offline/sembast_init.dart';
 import 'offline/offline_queue.dart';
 import 'offline/sync_coordinator.dart';
 import 'router/app_router.dart';
@@ -49,8 +49,8 @@ import 'ui/theme/scholesa_theme.dart';
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  // Initialize Isar for offline storage
-  await initIsar();
+  // Initialize Sembast for offline storage
+  await initSembast();
 
   // Initialize Firebase with proper configuration
   await Firebase.initializeApp(
@@ -108,8 +108,8 @@ class _ScholesaAppState extends State<ScholesaApp> {
       _offlineQueue = OfflineQueue();
       _telemetryService = TelemetryService();
       
-      // Initialize offline queue with Isar
-      await _offlineQueue.init(isar);
+      // Initialize offline queue with Sembast
+      await _offlineQueue.init(db);
       
       _syncCoordinator = SyncCoordinator(
         queue: _offlineQueue,

@@ -2,7 +2,7 @@ import 'dart:async';
 import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:flutter/foundation.dart';
 import '../services/api_client.dart';
-import 'isar_init.dart';
+import 'sembast_init.dart';
 import 'offline_queue.dart';
 
 /// Coordinates sync between offline queue and server
@@ -29,7 +29,7 @@ class SyncCoordinator extends ChangeNotifier {
 
   /// Initialize and start listening for connectivity changes
   Future<void> init() async {
-    await _queue.init(isar);
+    await _queue.init(db);
     
     // Check initial connectivity
     final List<ConnectivityResult> results = await _connectivity.checkConnectivity();
