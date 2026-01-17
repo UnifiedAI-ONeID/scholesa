@@ -1,27 +1,12 @@
-import 'package:hive/hive.dart';
+import 'package:isar/isar.dart';
 import 'package:uuid/uuid.dart';
 
-/// Offline operation statuses
-enum OpStatus {
-  pending,
-  syncing,
-  synced,
-  failed,
-}
+import 'queued_op_model.dart';
 
-/// Operation types from docs/68_OFFLINE_OPS_CATALOG.md
-enum OpType {
-  attendanceRecord,
-  presenceCheckin,
-  presenceCheckout,
-  incidentSubmit,
-  messageSend,
-  attemptSaveDraft,
-}
+export 'queued_op_model.dart' show OpStatus, OpType;
 
-/// Single queued operation
+/// Legacy QueuedOp class for API compatibility
 class QueuedOp {
-
   QueuedOp({
     String? id,
     required this.type,
@@ -35,16 +20,17 @@ class QueuedOp {
         createdAt = createdAt ?? DateTime.now(),
         idempotencyKey = idempotencyKey ?? const Uuid().v4();
 
-  factory QueuedOp.fromJson(Map<String, dynamic> json) => QueuedOp(
-        id: json['id'] as String,
-        type: OpType.values.firstWhere((OpType t) => t.name == json['type']),
-        payload: json['payload'] as Map<String, dynamic>,
-        createdAt: DateTime.fromMillisecondsSinceEpoch(json['createdAt'] as int),
-        idempotencyKey: json['idempotencyKey'] as String?,
-        status: OpStatus.values.firstWhere((OpStatus s) => s.name == json['status']),
-        retryCount: json['retryCount'] as int? ?? 0,
-        lastError: json['lastError'] as String?,
+  factory QueuedOp.fromModel(QueuedOpModel model) => QueuedOp(
+        id: model.opId,
+        type: model.type,
+        payload: model.payload,
+        createdAt: model.createdAt,
+        idempotencyKey: model.idempotencyKey,
+        status: model.status,
+        retryCount: model.retryCount,
+        lastError: model.lastError,
       );
+
   final String id;
   final OpType type;
   final Map<String, dynamic> payload;
@@ -54,93 +40,104 @@ class QueuedOp {
   int retryCount;
   String? lastError;
 
-  Map<String, dynamic> toJson() => <String, dynamic>{
-        'id': id,
-        'type': type.name,
-        'payload': payload,
-        'createdAt': createdAt.millisecondsSinceEpoch,
-        'idempotencyKey': idempotencyKey,
-        'status': status.name,
-        'retryCount': retryCount,
-        'lastError': lastError,
-      };
+  QueuedOpModel toModel() => QueuedOpModel.create(
+        opId: id,
+        type: type,
+        payload: payload,
+        createdAt: createdAt,
+        idempotencyKey: idempotencyKey,
+        status: status,
+        retryCount: retryCount,
+        lastError: lastError,
+      );
 }
 
-/// Offline queue using Hive for persistence
+/// Offline queue using Isar for persistence
 class OfflineQueue {
-  static const String _boxName = 'offline_queue';
-  late Box<Map<String, dynamic>> _box;
+  late Isar _isar;
   bool _isInitialized = false;
 
-  /// Initialize the queue
-  Future<void> init() async {
+  /// Initialize the queue with provided Isar instance
+  Future<void> init(Isar isar) async {
     if (_isInitialized) return;
-    _box = await Hive.openBox<Map<String, dynamic>>(_boxName);
+    _isar = isar;
     _isInitialized = true;
   }
 
   /// Add operation to queue
   Future<QueuedOp> enqueue(OpType type, Map<String, dynamic> payload) async {
     final QueuedOp op = QueuedOp(type: type, payload: payload);
-    await _box.put(op.id, op.toJson());
+    await _isar.writeTxn(() async {
+      await _isar.queuedOpModels.put(op.toModel());
+    });
     return op;
   }
 
   /// Get all pending operations
   List<QueuedOp> getPending() {
-    return _box.values
-        .map((Map<dynamic, dynamic> v) => QueuedOp.fromJson(Map<String, dynamic>.from(v)))
-        .where((QueuedOp op) => op.status == OpStatus.pending || op.status == OpStatus.failed)
-        .toList()
-      ..sort((QueuedOp a, QueuedOp b) => a.createdAt.compareTo(b.createdAt));
+    final List<QueuedOpModel> models = _isar.queuedOpModels
+        .filter()
+        .statusEqualTo(OpStatus.pending)
+        .or()
+        .statusEqualTo(OpStatus.failed)
+        .sortByCreatedAt()
+        .findAllSync();
+    return models.map(QueuedOp.fromModel).toList();
   }
 
   /// Get all operations
   List<QueuedOp> getAll() {
-    return _box.values
-        .map((Map<dynamic, dynamic> v) => QueuedOp.fromJson(Map<String, dynamic>.from(v)))
-        .toList()
-      ..sort((QueuedOp a, QueuedOp b) => a.createdAt.compareTo(b.createdAt));
+    final List<QueuedOpModel> models =
+        _isar.queuedOpModels.where().sortByCreatedAt().findAllSync();
+    return models.map(QueuedOp.fromModel).toList();
   }
 
   /// Update operation status
   Future<void> updateStatus(String id, OpStatus status, {String? error}) async {
-    final Map<dynamic, dynamic>? data = _box.get(id);
-    if (data == null) return;
-    
-    final QueuedOp op = QueuedOp.fromJson(Map<String, dynamic>.from(data));
-    op.status = status;
-    if (error != null) {
-      op.lastError = error;
-      op.retryCount++;
-    }
-    await _box.put(id, op.toJson());
+    await _isar.writeTxn(() async {
+      final QueuedOpModel? model =
+          await _isar.queuedOpModels.filter().opIdEqualTo(id).findFirst();
+      if (model == null) return;
+
+      model.status = status;
+      if (error != null) {
+        model.lastError = error;
+        model.retryCount++;
+      }
+      await _isar.queuedOpModels.put(model);
+    });
   }
 
   /// Remove synced operations older than duration
   Future<int> purge({Duration olderThan = const Duration(days: 7)}) async {
     final DateTime cutoff = DateTime.now().subtract(olderThan);
-    final List<String> toRemove = <String>[];
-    
-    for (final MapEntry<dynamic, dynamic> entry in _box.toMap().entries) {
-      final QueuedOp op = QueuedOp.fromJson(Map<String, dynamic>.from(entry.value as Map<dynamic, dynamic>));
-      if (op.status == OpStatus.synced && op.createdAt.isBefore(cutoff)) {
-        toRemove.add(entry.key as String);
-      }
-    }
-    
-    for (final String key in toRemove) {
-      await _box.delete(key);
-    }
-    
-    return toRemove.length;
+    int count = 0;
+
+    await _isar.writeTxn(() async {
+      count = await _isar.queuedOpModels
+          .filter()
+          .statusEqualTo(OpStatus.synced)
+          .createdAtLessThan(cutoff)
+          .deleteAll();
+    });
+
+    return count;
   }
 
   /// Get pending count
-  int get pendingCount => getPending().length;
+  int get pendingCount {
+    return _isar.queuedOpModels
+        .filter()
+        .statusEqualTo(OpStatus.pending)
+        .or()
+        .statusEqualTo(OpStatus.failed)
+        .countSync();
+  }
 
   /// Clear all (for testing)
   Future<void> clear() async {
-    await _box.clear();
+    await _isar.writeTxn(() async {
+      await _isar.queuedOpModels.clear();
+    });
   }
 }

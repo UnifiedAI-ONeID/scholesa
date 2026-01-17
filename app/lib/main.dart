@@ -2,7 +2,6 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
-import 'package:hive_flutter/hive_flutter.dart';
 import 'package:provider/provider.dart';
 import 'package:provider/single_child_widget.dart';
 
@@ -21,6 +20,7 @@ import 'modules/parent/parent.dart';
 import 'modules/partner/partner.dart';
 import 'modules/provisioning/provisioning_service.dart';
 import 'modules/site/incident_service.dart';
+import 'offline/isar_init.dart';
 import 'offline/offline_queue.dart';
 import 'offline/sync_coordinator.dart';
 import 'router/app_router.dart';
@@ -49,8 +49,8 @@ import 'ui/theme/scholesa_theme.dart';
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  // Initialize Hive for offline storage
-  await Hive.initFlutter();
+  // Initialize Isar for offline storage
+  await initIsar();
 
   // Initialize Firebase with proper configuration
   await Firebase.initializeApp(
@@ -108,8 +108,8 @@ class _ScholesaAppState extends State<ScholesaApp> {
       _offlineQueue = OfflineQueue();
       _telemetryService = TelemetryService();
       
-      // Initialize offline queue
-      await _offlineQueue.init();
+      // Initialize offline queue with Isar
+      await _offlineQueue.init(isar);
       
       _syncCoordinator = SyncCoordinator(
         queue: _offlineQueue,
