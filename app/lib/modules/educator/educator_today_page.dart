@@ -363,7 +363,7 @@ class _EducatorTodayPageState extends State<EducatorTodayPage> {
   }
 
   void _openClassDetail(TodayClass todayClass) {
-    showModalBottomSheet<void>(
+    showModalBottomSheet(
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,

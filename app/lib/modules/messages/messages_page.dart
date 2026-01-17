@@ -271,7 +271,7 @@ class _MessagesPageState extends State<MessagesPage> with SingleTickerProviderSt
 
   void _openMessage(Message message) {
     context.read<MessageService>().markAsRead(message.id);
-    showModalBottomSheet<void>(
+    showModalBottomSheet(
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,

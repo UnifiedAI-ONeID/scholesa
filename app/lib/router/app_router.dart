@@ -1,27 +1,27 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
-
 import '../auth/app_state.dart';
-import '../dashboards/role_dashboard.dart';
-import '../modules/attendance/attendance_page.dart';
-import '../modules/checkin/checkin.dart';
-import '../modules/educator/educator.dart';
-import '../modules/habits/habits.dart';
-import '../modules/hq_admin/hq_admin.dart';
-import '../modules/learner/learner.dart';
-import '../modules/messages/messages.dart';
-import '../modules/missions/missions.dart';
-import '../modules/parent/parent.dart';
-import '../modules/partner/partner.dart';
-import '../modules/profile/profile.dart';
-import '../modules/provisioning/provisioning_page.dart';
-import '../modules/settings/settings.dart';
-import '../modules/site/site.dart';
+import 'role_gate.dart';
+import '../ui/landing/landing_page.dart';
 import '../ui/auth/login_page.dart';
 import '../ui/auth/register_page.dart';
 import '../ui/error/fatal_error_screen.dart';
-import '../ui/landing/landing_page.dart';
-import 'role_gate.dart';
+import '../dashboards/role_dashboard.dart';
+import '../modules/attendance/attendance_page.dart';
+import '../modules/provisioning/provisioning_page.dart';
+import '../modules/hq_admin/hq_admin.dart';
+import '../modules/hq_admin/hq_role_switcher_page.dart';
+import '../modules/checkin/checkin.dart';
+import '../modules/missions/missions.dart';
+import '../modules/habits/habits.dart';
+import '../modules/messages/messages.dart';
+import '../modules/parent/parent.dart';
+import '../modules/educator/educator.dart';
+import '../modules/learner/learner.dart';
+import '../modules/profile/profile.dart';
+import '../modules/site/site.dart';
+import '../modules/settings/settings.dart';
+import '../modules/partner/partner.dart';
 
 /// Known routes registry - flip status when modules are done
 /// Based on docs/49_ROUTE_FLIP_TRACKER.md
@@ -265,14 +265,6 @@ GoRouter createAppRouter(AppState appState) {
       ),
       GoRoute(
         path: '/educator/missions/review',
-        builder: (BuildContext context, GoRouterState state) => const RoleGate(
-          allowedRoles: <UserRole>[UserRole.educator, UserRole.site, UserRole.hq],
-          child: EducatorMissionReviewPage(),
-        ),
-      ),
-      // Alias route for review-queue (same as missions/review)
-      GoRoute(
-        path: '/educator/review-queue',
         builder: (BuildContext context, GoRouterState state) => const RoleGate(
           allowedRoles: <UserRole>[UserRole.educator, UserRole.site, UserRole.hq],
           child: EducatorMissionReviewPage(),

@@ -1,13 +1,8 @@
 import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
-
-import '../../services/telemetry_service.dart';
 import '../../ui/theme/scholesa_theme.dart';
-import 'incident_service.dart';
 
 /// Site incidents management page
 /// Based on docs/41_SAFETY_CONSENT_INCIDENTS_SPEC.md
-/// Wired to IncidentService for live Firestore data
 class SiteIncidentsPage extends StatefulWidget {
   const SiteIncidentsPage({super.key});
 
@@ -15,16 +10,66 @@ class SiteIncidentsPage extends StatefulWidget {
   State<SiteIncidentsPage> createState() => _SiteIncidentsPageState();
 }
 
+enum _Severity { minor, major, critical }
+enum _Status { submitted, reviewed, closed }
+
+class _Incident {
+  const _Incident({
+    required this.id,
+    required this.title,
+    required this.severity,
+    required this.status,
+    required this.reportedBy,
+    required this.reportedAt,
+    required this.learnerName,
+  });
+
+  final String id;
+  final String title;
+  final _Severity severity;
+  final _Status status;
+  final String reportedBy;
+  final DateTime reportedAt;
+  final String learnerName;
+}
+
 class _SiteIncidentsPageState extends State<SiteIncidentsPage> with SingleTickerProviderStateMixin {
   late TabController _tabController;
+  
+  final List<_Incident> _incidents = <_Incident>[
+    _Incident(
+      id: '1',
+      title: 'Minor bump during play',
+      severity: _Severity.minor,
+      status: _Status.closed,
+      reportedBy: 'Ms. Johnson',
+      reportedAt: DateTime.now().subtract(const Duration(days: 2)),
+      learnerName: 'Oliver T.',
+    ),
+    _Incident(
+      id: '2',
+      title: 'Late pickup - 30 minutes',
+      severity: _Severity.minor,
+      status: _Status.reviewed,
+      reportedBy: 'Front Desk',
+      reportedAt: DateTime.now().subtract(const Duration(days: 1)),
+      learnerName: 'Emma S.',
+    ),
+    _Incident(
+      id: '3',
+      title: 'Behavioral concern during class',
+      severity: _Severity.major,
+      status: _Status.submitted,
+      reportedBy: 'Mr. Davis',
+      reportedAt: DateTime.now().subtract(const Duration(hours: 3)),
+      learnerName: 'Liam M.',
+    ),
+  ];
 
   @override
   void initState() {
     super.initState();
     _tabController = TabController(length: 3, vsync: this);
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      context.read<IncidentService>().loadIncidents();
-    });
   }
 
   @override
@@ -41,13 +86,6 @@ class _SiteIncidentsPageState extends State<SiteIncidentsPage> with SingleTicker
         title: const Text('Safety & Incidents'),
         backgroundColor: ScholesaColors.safetyGradient.colors.first,
         foregroundColor: Colors.white,
-        actions: <Widget>[
-          IconButton(
-            icon: const Icon(Icons.refresh_rounded),
-            onPressed: () => context.read<IncidentService>().loadIncidents(),
-            tooltip: 'Refresh',
-          ),
-        ],
         bottom: TabBar(
           controller: _tabController,
           indicatorColor: Colors.white,
@@ -66,44 +104,20 @@ class _SiteIncidentsPageState extends State<SiteIncidentsPage> with SingleTicker
         icon: const Icon(Icons.add_rounded),
         label: const Text('Report Incident'),
       ),
-      body: Consumer<IncidentService>(
-        builder: (BuildContext context, IncidentService service, Widget? child) {
-          if (service.isLoading) {
-            return const Center(child: CircularProgressIndicator());
-          }
-          if (service.error != null) {
-            return Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: <Widget>[
-                  Icon(Icons.error_outline, size: 48, color: Colors.red.shade400),
-                  const SizedBox(height: 16),
-                  Text('Error: ${service.error}'),
-                  const SizedBox(height: 16),
-                  ElevatedButton(
-                    onPressed: () => service.loadIncidents(),
-                    child: const Text('Retry'),
-                  ),
-                ],
-              ),
-            );
-          }
-          return TabBarView(
-            controller: _tabController,
-            children: <Widget>[
-              _buildIncidentList(service, IncidentStatus.submitted),
-              _buildIncidentList(service, IncidentStatus.reviewed),
-              _buildIncidentList(service, IncidentStatus.closed),
-            ],
-          );
-        },
+      body: TabBarView(
+        controller: _tabController,
+        children: <Widget>[
+          _buildIncidentList(_Status.submitted),
+          _buildIncidentList(_Status.reviewed),
+          _buildIncidentList(_Status.closed),
+        ],
       ),
     );
   }
 
-  Widget _buildIncidentList(IncidentService service, IncidentStatus statusFilter) {
-    final List<Incident> filtered = service.incidents
-        .where((Incident i) => i.status == statusFilter)
+  Widget _buildIncidentList(_Status statusFilter) {
+    final List<_Incident> filtered = _incidents
+        .where((_Incident i) => i.status == statusFilter)
         .toList();
 
     if (filtered.isEmpty) {
@@ -119,7 +133,7 @@ class _SiteIncidentsPageState extends State<SiteIncidentsPage> with SingleTicker
             const SizedBox(height: 16),
             Text(
               'No ${statusFilter.name} incidents',
-              style: const TextStyle(
+              style: TextStyle(
                 fontSize: 16,
                 color: ScholesaColors.textSecondary,
               ),
@@ -129,19 +143,16 @@ class _SiteIncidentsPageState extends State<SiteIncidentsPage> with SingleTicker
       );
     }
 
-    return RefreshIndicator(
-      onRefresh: () => service.loadIncidents(),
-      child: ListView.builder(
-        padding: const EdgeInsets.all(16),
-        itemCount: filtered.length,
-        itemBuilder: (BuildContext context, int index) {
-          return _buildIncidentCard(filtered[index]);
-        },
-      ),
+    return ListView.builder(
+      padding: const EdgeInsets.all(16),
+      itemCount: filtered.length,
+      itemBuilder: (BuildContext context, int index) {
+        return _buildIncidentCard(filtered[index]);
+      },
     );
   }
 
-  Widget _buildIncidentCard(Incident incident) {
+  Widget _buildIncidentCard(_Incident incident) {
     return Card(
       margin: const EdgeInsets.only(bottom: 12),
       color: ScholesaColors.surface,
@@ -173,21 +184,21 @@ class _SiteIncidentsPageState extends State<SiteIncidentsPage> with SingleTicker
               const SizedBox(height: 12),
               Row(
                 children: <Widget>[
-                  const Icon(Icons.person_rounded, size: 16, color: ScholesaColors.textSecondary),
+                  Icon(Icons.person_rounded, size: 16, color: ScholesaColors.textSecondary),
                   const SizedBox(width: 4),
                   Text(
                     incident.learnerName,
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontSize: 13,
                       color: ScholesaColors.textSecondary,
                     ),
                   ),
                   const SizedBox(width: 16),
-                  const Icon(Icons.schedule_rounded, size: 16, color: ScholesaColors.textSecondary),
+                  Icon(Icons.schedule_rounded, size: 16, color: ScholesaColors.textSecondary),
                   const SizedBox(width: 4),
                   Text(
                     _formatDateTime(incident.reportedAt),
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontSize: 13,
                       color: ScholesaColors.textSecondary,
                     ),
@@ -197,7 +208,7 @@ class _SiteIncidentsPageState extends State<SiteIncidentsPage> with SingleTicker
               const SizedBox(height: 8),
               Text(
                 'Reported by ${incident.reportedBy}',
-                style: const TextStyle(
+                style: TextStyle(
                   fontSize: 12,
                   color: ScholesaColors.textSecondary,
                 ),
@@ -209,17 +220,17 @@ class _SiteIncidentsPageState extends State<SiteIncidentsPage> with SingleTicker
     );
   }
 
-  Widget _buildSeverityBadge(IncidentSeverity severity) {
+  Widget _buildSeverityBadge(_Severity severity) {
     Color color;
     String label;
     switch (severity) {
-      case IncidentSeverity.minor:
+      case _Severity.minor:
         color = Colors.orange;
         label = 'Minor';
-      case IncidentSeverity.major:
+      case _Severity.major:
         color = Colors.deepOrange;
         label = 'Major';
-      case IncidentSeverity.critical:
+      case _Severity.critical:
         color = Colors.red;
         label = 'Critical';
     }
@@ -242,7 +253,7 @@ class _SiteIncidentsPageState extends State<SiteIncidentsPage> with SingleTicker
     );
   }
 
-  void _showIncidentDetails(Incident incident) {
+  void _showIncidentDetails(_Incident incident) {
     showModalBottomSheet<void>(
       context: context,
       backgroundColor: ScholesaColors.surface,
@@ -275,10 +286,8 @@ class _SiteIncidentsPageState extends State<SiteIncidentsPage> with SingleTicker
             _buildInfoRow('Reported By', incident.reportedBy),
             _buildInfoRow('Date', _formatDateTime(incident.reportedAt)),
             _buildInfoRow('Status', incident.status.name.toUpperCase()),
-            if (incident.description.isNotEmpty)
-              _buildInfoRow('Description', incident.description),
             const SizedBox(height: 24),
-            if (incident.status != IncidentStatus.closed)
+            if (incident.status != _Status.closed)
               Row(
                 children: <Widget>[
                   Expanded(
@@ -290,23 +299,16 @@ class _SiteIncidentsPageState extends State<SiteIncidentsPage> with SingleTicker
                   const SizedBox(width: 12),
                   Expanded(
                     child: ElevatedButton(
-                      onPressed: () async {
+                      onPressed: () {
                         Navigator.pop(context);
-                        final IncidentService service = this.context.read<IncidentService>();
-                        final IncidentStatus newStatus = incident.status == IncidentStatus.submitted 
-                            ? IncidentStatus.reviewed 
-                            : IncidentStatus.closed;
-                        await service.updateIncidentStatus(incidentId: incident.id, newStatus: newStatus);
-                        if (mounted) {
-                          ScaffoldMessenger.of(this.context).showSnackBar(
-                            SnackBar(content: Text('Incident ${newStatus.name}')),
-                          );
-                        }
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(content: Text('Incident updated')),
+                        );
                       },
                       style: ElevatedButton.styleFrom(
                         backgroundColor: ScholesaColors.safetyGradient.colors.first,
                       ),
-                      child: Text(incident.status == IncidentStatus.submitted ? 'Review' : 'Close Incident'),
+                      child: Text(incident.status == _Status.submitted ? 'Review' : 'Close Incident'),
                     ),
                   ),
                 ],
@@ -330,19 +332,14 @@ class _SiteIncidentsPageState extends State<SiteIncidentsPage> with SingleTicker
       padding: const EdgeInsets.only(bottom: 8),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        crossAxisAlignment: CrossAxisAlignment.start,
         children: <Widget>[
           Text(
             label,
-            style: const TextStyle(color: ScholesaColors.textSecondary),
+            style: TextStyle(color: ScholesaColors.textSecondary),
           ),
-          const SizedBox(width: 16),
-          Flexible(
-            child: Text(
-              value,
-              style: const TextStyle(fontWeight: FontWeight.w500),
-              textAlign: TextAlign.end,
-            ),
+          Text(
+            value,
+            style: const TextStyle(fontWeight: FontWeight.w500),
           ),
         ],
       ),
@@ -350,105 +347,49 @@ class _SiteIncidentsPageState extends State<SiteIncidentsPage> with SingleTicker
   }
 
   void _showCreateIncidentDialog() {
-    final TextEditingController titleController = TextEditingController();
-    final TextEditingController descController = TextEditingController();
-    final TextEditingController learnerController = TextEditingController();
-    IncidentSeverity severity = IncidentSeverity.minor;
-
     showDialog<void>(
       context: context,
-      builder: (BuildContext dialogContext) => StatefulBuilder(
-        builder: (BuildContext context, StateSetter setDialogState) => AlertDialog(
-          backgroundColor: ScholesaColors.surface,
-          title: const Text('Report New Incident'),
-          content: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: <Widget>[
-                TextField(
-                  controller: titleController,
-                  decoration: const InputDecoration(
-                    labelText: 'Incident Title',
-                    border: OutlineInputBorder(),
-                  ),
-                ),
-                const SizedBox(height: 12),
-                TextField(
-                  controller: learnerController,
-                  decoration: const InputDecoration(
-                    labelText: 'Learner Name',
-                    border: OutlineInputBorder(),
-                  ),
-                ),
-                const SizedBox(height: 12),
-                TextField(
-                  controller: descController,
-                  decoration: const InputDecoration(
-                    labelText: 'Description',
-                    border: OutlineInputBorder(),
-                  ),
-                  maxLines: 3,
-                ),
-                const SizedBox(height: 12),
-                DropdownButtonFormField<IncidentSeverity>(
-                  value: severity,
-                  decoration: const InputDecoration(
-                    labelText: 'Severity',
-                    border: OutlineInputBorder(),
-                  ),
-                  items: IncidentSeverity.values.map((IncidentSeverity s) => DropdownMenuItem<IncidentSeverity>(
-                    value: s,
-                    child: Text(s.name.toUpperCase()),
-                  )).toList(),
-                  onChanged: (IncidentSeverity? val) {
-                    if (val != null) {
-                      setDialogState(() => severity = val);
-                    }
-                  },
-                ),
-              ],
+      builder: (BuildContext context) => AlertDialog(
+        backgroundColor: ScholesaColors.surface,
+        title: const Text('Report New Incident'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: <Widget>[
+            TextField(
+              decoration: const InputDecoration(
+                labelText: 'Incident Title',
+                border: OutlineInputBorder(),
+              ),
             ),
-          ),
-          actions: <Widget>[
-            TextButton(
-              onPressed: () => Navigator.pop(dialogContext),
-              child: const Text('Cancel'),
-            ),
-            ElevatedButton(
-              onPressed: () async {
-                if (titleController.text.isEmpty || learnerController.text.isEmpty) {
-                  ScaffoldMessenger.of(this.context).showSnackBar(
-                    const SnackBar(content: Text('Please fill in title and learner name')),
-                  );
-                  return;
-                }
-                Navigator.pop(dialogContext);
-                
-                final IncidentService service = this.context.read<IncidentService>();
-                await service.createIncident(
-                  title: titleController.text,
-                  description: descController.text,
-                  severity: severity,
-                  learnerId: 'temp_learner_id', // In real app, select from dropdown
-                  learnerName: learnerController.text,
-                  category: 'general',
-                );
-                
-                // Track telemetry
-                this.context.read<TelemetryService>().logEvent('incident.created', metadata: <String, dynamic>{
-                  'severity': severity.name,
-                });
-                
-                if (mounted) {
-                  ScaffoldMessenger.of(this.context).showSnackBar(
-                    const SnackBar(content: Text('Incident reported')),
-                  );
-                }
-              },
-              child: const Text('Submit'),
+            const SizedBox(height: 12),
+            DropdownButtonFormField<_Severity>(
+              decoration: const InputDecoration(
+                labelText: 'Severity',
+                border: OutlineInputBorder(),
+              ),
+              items: _Severity.values.map((_Severity s) => DropdownMenuItem<_Severity>(
+                value: s,
+                child: Text(s.name.toUpperCase()),
+              )).toList(),
+              onChanged: (_) {},
             ),
           ],
         ),
+        actions: <Widget>[
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              Navigator.pop(context);
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(content: Text('Incident reported')),
+              );
+            },
+            child: const Text('Submit'),
+          ),
+        ],
       ),
     );
   }

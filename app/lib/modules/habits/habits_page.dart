@@ -677,7 +677,7 @@ class _HabitsPageState extends State<HabitsPage> with TickerProviderStateMixin {
   }
 
   void _showHabitDetail(Habit habit) {
-    showModalBottomSheet<void>(
+    showModalBottomSheet(
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
@@ -686,7 +686,7 @@ class _HabitsPageState extends State<HabitsPage> with TickerProviderStateMixin {
   }
 
   void _showCreateHabitSheet() {
-    showModalBottomSheet<void>(
+    showModalBottomSheet(
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,

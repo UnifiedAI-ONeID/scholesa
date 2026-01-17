@@ -1,6 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
-import '../../auth/app_state.dart';
 import '../../ui/theme/scholesa_theme.dart';
 
 /// Settings Page - App settings and preferences
@@ -19,7 +17,7 @@ class _SettingsPageState extends State<SettingsPage> {
   bool _darkMode = false;
   bool _biometricEnabled = false;
   String _language = 'en';
-  final String _timeZone = 'auto';
+  String _timeZone = 'auto';
 
   @override
   Widget build(BuildContext context) {
@@ -99,9 +97,6 @@ class _SettingsPageState extends State<SettingsPage> {
   }
 
   Widget _buildAccountSection() {
-    final AppState appState = context.watch<AppState>();
-    final String userEmail = appState.email ?? 'Not set';
-    
     return _SettingsSection(
       title: 'Account',
       children: <Widget>[
@@ -120,13 +115,13 @@ class _SettingsPageState extends State<SettingsPage> {
         _SettingsTile(
           icon: Icons.email,
           title: 'Email',
-          subtitle: userEmail,
+          subtitle: 'emma@example.com',
           onTap: () => _showChangeEmailSheet(),
         ),
         _SettingsTile(
           icon: Icons.phone,
           title: 'Phone Number',
-          subtitle: 'Tap to update',
+          subtitle: '+1 234 567 8900',
           onTap: () => _showChangePhoneSheet(),
         ),
       ],
@@ -279,7 +274,7 @@ class _SettingsPageState extends State<SettingsPage> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: <Widget>[
-          const Text(
+          Text(
             'Danger Zone',
             style: TextStyle(
               color: ScholesaColors.error,
@@ -495,13 +490,13 @@ class _SettingsPageState extends State<SettingsPage> {
 }
 
 class _SettingsSection extends StatelessWidget {
+  final String title;
+  final List<Widget> children;
 
   const _SettingsSection({
     required this.title,
     required this.children,
   });
-  final String title;
-  final List<Widget> children;
 
   @override
   Widget build(BuildContext context) {
@@ -544,6 +539,11 @@ class _SettingsSection extends StatelessWidget {
 }
 
 class _SettingsTile extends StatelessWidget {
+  final IconData icon;
+  final String title;
+  final String subtitle;
+  final Color? iconColor;
+  final VoidCallback onTap;
 
   const _SettingsTile({
     required this.icon,
@@ -552,11 +552,6 @@ class _SettingsTile extends StatelessWidget {
     this.iconColor,
     required this.onTap,
   });
-  final IconData icon;
-  final String title;
-  final String subtitle;
-  final Color? iconColor;
-  final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
@@ -581,6 +576,11 @@ class _SettingsTile extends StatelessWidget {
 }
 
 class _SettingsToggle extends StatelessWidget {
+  final IconData icon;
+  final String title;
+  final String subtitle;
+  final bool value;
+  final ValueChanged<bool> onChanged;
 
   const _SettingsToggle({
     required this.icon,
@@ -589,11 +589,6 @@ class _SettingsToggle extends StatelessWidget {
     required this.value,
     required this.onChanged,
   });
-  final IconData icon;
-  final String title;
-  final String subtitle;
-  final bool value;
-  final ValueChanged<bool> onChanged;
 
   @override
   Widget build(BuildContext context) {
@@ -614,7 +609,7 @@ class _SettingsToggle extends StatelessWidget {
       trailing: Switch(
         value: value,
         onChanged: onChanged,
-        activeThumbColor: ScholesaColors.success,
+        activeColor: ScholesaColors.success,
       ),
     );
   }

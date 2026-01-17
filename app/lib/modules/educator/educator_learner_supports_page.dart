@@ -77,7 +77,7 @@ class _EducatorLearnerSupportsPageState extends State<EducatorLearnerSupportsPag
             ),
           ),
           const SizedBox(height: 12),
-          ..._learnerSupports.map((_LearnerSupport support) => _buildSupportCard(support)),
+          ..._learnerSupports.map((support) => _buildSupportCard(support)),
         ],
       ),
     );
@@ -138,7 +138,7 @@ class _EducatorLearnerSupportsPageState extends State<EducatorLearnerSupportsPag
           ),
           Text(
             label,
-            style: const TextStyle(
+            style: TextStyle(
               fontSize: 11,
               color: ScholesaColors.textSecondary,
             ),
@@ -192,7 +192,7 @@ class _EducatorLearnerSupportsPageState extends State<EducatorLearnerSupportsPag
                         const SizedBox(height: 2),
                         Text(
                           support.supportType,
-                          style: const TextStyle(
+                          style: TextStyle(
                             fontSize: 13,
                             color: ScholesaColors.textSecondary,
                           ),
@@ -213,7 +213,7 @@ class _EducatorLearnerSupportsPageState extends State<EducatorLearnerSupportsPag
                 const SizedBox(height: 12),
                 Text(
                   'Note: ${support.notes}',
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontSize: 13,
                     fontStyle: FontStyle.italic,
                     color: ScholesaColors.textSecondary,
@@ -322,7 +322,7 @@ class _EducatorLearnerSupportsPageState extends State<EducatorLearnerSupportsPag
                       ),
                       Text(
                         'Support Plan • ${support.supportType}',
-                        style: const TextStyle(color: ScholesaColors.textSecondary),
+                        style: TextStyle(color: ScholesaColors.textSecondary),
                       ),
                     ],
                   ),
@@ -359,7 +359,7 @@ class _EducatorLearnerSupportsPageState extends State<EducatorLearnerSupportsPag
             const SizedBox(height: 8),
             Text(
               support.notes.isNotEmpty ? support.notes : 'No notes',
-              style: const TextStyle(color: ScholesaColors.textSecondary),
+              style: TextStyle(color: ScholesaColors.textSecondary),
             ),
             const SizedBox(height: 24),
             Row(

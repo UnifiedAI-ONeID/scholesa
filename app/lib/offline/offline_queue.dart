@@ -1,4 +1,4 @@
-import 'package:sembast/sembast.dart';
+import 'package:hive/hive.dart';
 import 'package:uuid/uuid.dart';
 
 /// Offline operation statuses
@@ -21,6 +21,7 @@ enum OpType {
 
 /// Single queued operation
 class QueuedOp {
+
   QueuedOp({
     String? id,
     required this.type,
@@ -34,17 +35,16 @@ class QueuedOp {
         createdAt = createdAt ?? DateTime.now(),
         idempotencyKey = idempotencyKey ?? const Uuid().v4();
 
-  factory QueuedOp.fromMap(Map<String, dynamic> map) => QueuedOp(
-        id: map['id'] as String,
-        type: OpType.values.firstWhere((OpType t) => t.name == map['type']),
-        payload: Map<String, dynamic>.from(map['payload'] as Map),
-        createdAt: DateTime.fromMillisecondsSinceEpoch(map['createdAt'] as int),
-        idempotencyKey: map['idempotencyKey'] as String?,
-        status: OpStatus.values.firstWhere((OpStatus s) => s.name == map['status']),
-        retryCount: map['retryCount'] as int? ?? 0,
-        lastError: map['lastError'] as String?,
+  factory QueuedOp.fromJson(Map<String, dynamic> json) => QueuedOp(
+        id: json['id'] as String,
+        type: OpType.values.firstWhere((t) => t.name == json['type']),
+        payload: json['payload'] as Map<String, dynamic>,
+        createdAt: DateTime.fromMillisecondsSinceEpoch(json['createdAt'] as int),
+        idempotencyKey: json['idempotencyKey'] as String?,
+        status: OpStatus.values.firstWhere((s) => s.name == json['status']),
+        retryCount: json['retryCount'] as int? ?? 0,
+        lastError: json['lastError'] as String?,
       );
-
   final String id;
   final OpType type;
   final Map<String, dynamic> payload;
@@ -54,7 +54,7 @@ class QueuedOp {
   int retryCount;
   String? lastError;
 
-  Map<String, dynamic> toMap() => <String, dynamic>{
+  Map<String, dynamic> toJson() => <String, dynamic>{
         'id': id,
         'type': type.name,
         'payload': payload,
@@ -66,118 +66,81 @@ class QueuedOp {
       };
 }
 
-/// Offline queue using Sembast for persistence (works on all platforms including web)
+/// Offline queue using Hive for persistence
 class OfflineQueue {
-  /// Store for queued operations (string keys, map values)
-  final StoreRef<String, Map<String, Object?>> _store =
-      StoreRef<String, Map<String, Object?>>('offline_queue');
-
-  late Database _db;
+  static const String _boxName = 'offline_queue';
+  late Box<Map> _box;
   bool _isInitialized = false;
 
-  /// Initialize the queue with provided Sembast database instance
-  Future<void> init(Database database) async {
+  /// Initialize the queue
+  Future<void> init() async {
     if (_isInitialized) return;
-    _db = database;
+    _box = await Hive.openBox<Map>(_boxName);
     _isInitialized = true;
   }
 
   /// Add operation to queue
   Future<QueuedOp> enqueue(OpType type, Map<String, dynamic> payload) async {
     final QueuedOp op = QueuedOp(type: type, payload: payload);
-    await _store.record(op.id).put(_db, op.toMap());
+    await _box.put(op.id, op.toJson());
     return op;
   }
 
   /// Get all pending operations
-  Future<List<QueuedOp>> getPending() async {
-    final Finder finder = Finder(
-      filter: Filter.or(<Filter>[
-        Filter.equals('status', OpStatus.pending.name),
-        Filter.equals('status', OpStatus.failed.name),
-      ]),
-      sortOrders: <SortOrder>[SortOrder('createdAt')],
-    );
-    final List<RecordSnapshot<String, Map<String, Object?>>> records =
-        await _store.find(_db, finder: finder);
-    return records
-        .map((RecordSnapshot<String, Map<String, Object?>> r) =>
-            QueuedOp.fromMap(Map<String, dynamic>.from(r.value)))
-        .toList();
-  }
-
-  /// Get all pending operations synchronously (for compatibility)
-  List<QueuedOp> getPendingSync() {
-    // Note: For Sembast, we need to use async methods
-    // This is a simplified sync wrapper that returns empty if not loaded
-    // For actual usage, prefer the async getPending() method
-    return <QueuedOp>[];
+  List<QueuedOp> getPending() {
+    return _box.values
+        .map((Map<dynamic, dynamic> v) => QueuedOp.fromJson(Map<String, dynamic>.from(v)))
+        .where((QueuedOp op) => op.status == OpStatus.pending || op.status == OpStatus.failed)
+        .toList()
+      ..sort((QueuedOp a, QueuedOp b) => a.createdAt.compareTo(b.createdAt));
   }
 
   /// Get all operations
-  Future<List<QueuedOp>> getAll() async {
-    final Finder finder = Finder(
-      sortOrders: <SortOrder>[SortOrder('createdAt')],
-    );
-    final List<RecordSnapshot<String, Map<String, Object?>>> records =
-        await _store.find(_db, finder: finder);
-    return records
-        .map((RecordSnapshot<String, Map<String, Object?>> r) =>
-            QueuedOp.fromMap(Map<String, dynamic>.from(r.value)))
-        .toList();
+  List<QueuedOp> getAll() {
+    return _box.values
+        .map((Map<dynamic, dynamic> v) => QueuedOp.fromJson(Map<String, dynamic>.from(v)))
+        .toList()
+      ..sort((QueuedOp a, QueuedOp b) => a.createdAt.compareTo(b.createdAt));
   }
 
   /// Update operation status
   Future<void> updateStatus(String id, OpStatus status, {String? error}) async {
-    final RecordSnapshot<String, Map<String, Object?>>? record =
-        await _store.record(id).getSnapshot(_db);
-    if (record == null) return;
-
-    final QueuedOp op = QueuedOp.fromMap(Map<String, dynamic>.from(record.value));
+    final Map<dynamic, dynamic>? data = _box.get(id);
+    if (data == null) return;
+    
+    final QueuedOp op = QueuedOp.fromJson(Map<String, dynamic>.from(data));
     op.status = status;
     if (error != null) {
       op.lastError = error;
       op.retryCount++;
     }
-    await _store.record(id).put(_db, op.toMap());
+    await _box.put(id, op.toJson());
   }
 
   /// Remove synced operations older than duration
   Future<int> purge({Duration olderThan = const Duration(days: 7)}) async {
     final DateTime cutoff = DateTime.now().subtract(olderThan);
-    final int cutoffMs = cutoff.millisecondsSinceEpoch;
-
-    final Finder finder = Finder(
-      filter: Filter.and(<Filter>[
-        Filter.equals('status', OpStatus.synced.name),
-        Filter.lessThan('createdAt', cutoffMs),
-      ]),
-    );
-
-    final List<RecordSnapshot<String, Map<String, Object?>>> records =
-        await _store.find(_db, finder: finder);
+    final List<String> toRemove = <String>[];
     
-    for (final RecordSnapshot<String, Map<String, Object?>> record in records) {
-      await _store.record(record.key).delete(_db);
+    for (final MapEntry<dynamic, dynamic> entry in _box.toMap().entries) {
+      final QueuedOp op = QueuedOp.fromJson(Map<String, dynamic>.from(entry.value as Map<dynamic, dynamic>));
+      if (op.status == OpStatus.synced && op.createdAt.isBefore(cutoff)) {
+        toRemove.add(entry.key as String);
+      }
     }
-
-    return records.length;
+    
+    for (final String key in toRemove) {
+      await _box.delete(key);
+    }
+    
+    return toRemove.length;
   }
 
   /// Get pending count
-  Future<int> getPendingCount() async {
-    final Filter filter = Filter.or(<Filter>[
-        Filter.equals('status', OpStatus.pending.name),
-        Filter.equals('status', OpStatus.failed.name),
-      ]);
-    return await _store.count(_db, filter: filter);
-  }
-
-  /// Sync getter for pending count (returns 0 if not yet loaded, use getPendingCount() for accuracy)
-  int get pendingCount => 0; // Fallback; use getPendingCount() async version
+  int get pendingCount => getPending().length;
 
   /// Clear all (for testing)
   Future<void> clear() async {
-    await _store.drop(_db);
+    await _box.clear();
   }
 }

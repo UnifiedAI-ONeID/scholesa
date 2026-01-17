@@ -1,17 +1,17 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/foundation.dart';
-import '../../services/telemetry_service.dart';
+import '../../services/firestore_service.dart';
 import 'checkin_models.dart';
 
 /// Service for site check-in/check-out operations - wired to Firebase
 class CheckinService extends ChangeNotifier {
 
   CheckinService({
-    this.siteId,
-    this.telemetryService,
-  });
-  final String? siteId;
-  final TelemetryService? telemetryService;
+    required FirestoreService firestoreService,
+    required this.siteId,
+  }) : _firestoreService = firestoreService;
+  final FirestoreService _firestoreService;
+  final String siteId;
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
 
   List<LearnerDaySummary> _learnerSummaries = <LearnerDaySummary>[];
@@ -76,13 +76,6 @@ class CheckinService extends ChangeNotifier {
 
   /// Load today's check-in data from Firebase
   Future<void> loadTodayData() async {
-    if (siteId == null) {
-      _error = 'No site selected. Please select a site first.';
-      notifyListeners();
-      return;
-    }
-    final String currentSiteId = siteId!;
-
     _isLoading = true;
     _error = null;
     notifyListeners();
@@ -95,7 +88,7 @@ class CheckinService extends ChangeNotifier {
       // Query presence records for today
       final QuerySnapshot<Map<String, dynamic>> recordsSnapshot = await _firestore
           .collection('presenceRecords')
-          .where('siteId', isEqualTo: currentSiteId)
+          .where('siteId', isEqualTo: siteId)
           .where('timestamp', isGreaterThanOrEqualTo: Timestamp.fromDate(startOfDay))
           .where('timestamp', isLessThan: Timestamp.fromDate(endOfDay))
           .orderBy('timestamp', descending: true)
@@ -108,7 +101,7 @@ class CheckinService extends ChangeNotifier {
           id: doc.id,
           learnerId: data['learnerId'] as String? ?? '',
           learnerName: data['learnerName'] as String? ?? 'Unknown',
-          siteId: currentSiteId,
+          siteId: siteId,
           status: data['type'] == 'checkin' ? CheckStatus.checkedIn : CheckStatus.checkedOut,
           timestamp: _parseTimestamp(data['timestamp']) ?? DateTime.now(),
           visitorId: data['recordedBy'] as String? ?? '',
@@ -126,7 +119,7 @@ class CheckinService extends ChangeNotifier {
       // Get all learners enrolled at this site
       final QuerySnapshot<Map<String, dynamic>> learnersSnapshot = await _firestore
           .collection('users')
-          .where('siteIds', arrayContains: currentSiteId)
+          .where('siteIds', arrayContains: siteId)
           .where('role', isEqualTo: 'learner')
           .get();
 
@@ -164,6 +157,7 @@ class CheckinService extends ChangeNotifier {
           checkedInBy: latestCheckin?.visitorName,
           checkedOutAt: latestCheckout?.timestamp,
           checkedOutBy: latestCheckout?.visitorName,
+          authorizedPickups: <AuthorizedPickup>[], // Will be loaded separately if needed
         );
       }).toList();
 
@@ -194,43 +188,17 @@ class CheckinService extends ChangeNotifier {
     required String visitorName,
     String? notes,
   }) async {
-    if (siteId == null) {
-      _error = 'No site selected. Cannot check in without a site.';
-      notifyListeners();
-      return false;
-    }
-    final String currentSiteId = siteId!;
-
     try {
-      // Write to Firebase first
-      final DocumentReference<Map<String, dynamic>> docRef = await _firestore
-          .collection('presenceRecords')
-          .add(<String, dynamic>{
-        'learnerId': learnerId,
-        'learnerName': learnerName,
-        'recordedBy': visitorId,
-        'recorderName': visitorName,
-        'siteId': currentSiteId,
-        'type': 'checkin',
-        'timestamp': FieldValue.serverTimestamp(),
-        'notes': notes,
-      });
-
       final CheckRecord record = CheckRecord(
-        id: docRef.id,
+        id: 'rec_${DateTime.now().millisecondsSinceEpoch}',
         visitorId: visitorId,
         visitorName: visitorName,
         learnerId: learnerId,
         learnerName: learnerName,
-        siteId: currentSiteId,
+        siteId: siteId,
         timestamp: DateTime.now(),
         status: CheckStatus.checkedIn,
         notes: notes,
-      );
-
-      // Track telemetry
-      telemetryService?.trackCheckin(
-        learnerId: learnerId,
       );
 
       _todayRecords = <CheckRecord>[record, ..._todayRecords];
@@ -267,49 +235,17 @@ class CheckinService extends ChangeNotifier {
     required String visitorName,
     String? notes,
   }) async {
-    if (siteId == null) {
-      _error = 'No site selected. Cannot check out without a site.';
-      notifyListeners();
-      return false;
-    }
-    final String currentSiteId = siteId!;
-
     try {
-      // Write to Firebase first
-      final DocumentReference<Map<String, dynamic>> docRef = await _firestore
-          .collection('presenceRecords')
-          .add(<String, dynamic>{
-        'learnerId': learnerId,
-        'learnerName': learnerName,
-        'recordedBy': visitorId,
-        'recorderName': visitorName,
-        'siteId': currentSiteId,
-        'type': 'checkout',
-        'timestamp': FieldValue.serverTimestamp(),
-        'notes': notes,
-      });
-
       final CheckRecord record = CheckRecord(
-        id: docRef.id,
+        id: 'rec_${DateTime.now().millisecondsSinceEpoch}',
         visitorId: visitorId,
         visitorName: visitorName,
         learnerId: learnerId,
         learnerName: learnerName,
-        siteId: currentSiteId,
+        siteId: siteId,
         timestamp: DateTime.now(),
         status: CheckStatus.checkedOut,
         notes: notes,
-      );
-
-      // Track telemetry - calculate session duration if we have check-in time
-      final int summaryIndex = _learnerSummaries.indexWhere((LearnerDaySummary s) => s.learnerId == learnerId);
-      Duration? sessionDuration;
-      if (summaryIndex != -1 && _learnerSummaries[summaryIndex].checkedInAt != null) {
-        sessionDuration = DateTime.now().difference(_learnerSummaries[summaryIndex].checkedInAt!);
-      }
-      telemetryService?.trackCheckout(
-        learnerId: learnerId,
-        sessionDuration: sessionDuration ?? const Duration(hours: 1),
       );
 
       _todayRecords = <CheckRecord>[record, ..._todayRecords];

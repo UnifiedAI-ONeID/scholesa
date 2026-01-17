@@ -1,17 +1,17 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/foundation.dart';
-import '../../services/telemetry_service.dart';
+import '../../services/firestore_service.dart';
 import 'mission_models.dart';
 
 /// Service for learner missions
 class MissionService extends ChangeNotifier {
 
   MissionService({
-    this.learnerId,
-    this.telemetryService,
-  });
-  final String? learnerId;
-  final TelemetryService? telemetryService;
+    required FirestoreService firestoreService,
+    required this.learnerId,
+  }) : _firestoreService = firestoreService;
+  final FirestoreService _firestoreService;
+  final String learnerId;
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
 
   List<Mission> _missions = <Mission>[];
@@ -60,13 +60,6 @@ class MissionService extends ChangeNotifier {
 
   /// Load all missions for the learner from Firebase
   Future<void> loadMissions() async {
-    if (learnerId == null) {
-      _error = 'Not logged in. Please log in to view missions.';
-      notifyListeners();
-      return;
-    }
-    final String currentLearnerId = learnerId!;
-
     _isLoading = true;
     _error = null;
     notifyListeners();
@@ -75,7 +68,7 @@ class MissionService extends ChangeNotifier {
       // Load missions assigned to this learner
       final QuerySnapshot<Map<String, dynamic>> assignmentsSnapshot = await _firestore
           .collection('missionAssignments')
-          .where('learnerId', isEqualTo: currentLearnerId)
+          .where('learnerId', isEqualTo: learnerId)
           .get();
 
       final List<Mission> loadedMissions = <Mission>[];
@@ -122,6 +115,7 @@ class MissionService extends ChangeNotifier {
             status: _parseStatus(assignData['status'] as String?),
             progress: (assignData['progress'] as num?)?.toDouble() ?? 0.0,
             steps: steps,
+            skills: <Skill>[],
             dueDate: _parseTimestamp(assignData['dueDate']),
             startedAt: _parseTimestamp(assignData['startedAt']),
             completedAt: _parseTimestamp(assignData['completedAt']),
@@ -198,69 +192,17 @@ class MissionService extends ChangeNotifier {
         .fold(0, (int sum, Mission m) => sum + m.xpReward);
     final int completed = _missions.where((Mission m) => m.status == MissionStatus.completed).length;
     final int level = (totalXp / 1000).floor() + 1;
-    
-    // Calculate pillar progress from completed missions
-    final Map<Pillar, int> pillarProgress = <Pillar, int>{
-      Pillar.futureSkills: 0,
-      Pillar.leadership: 0,
-      Pillar.impact: 0,
-    };
-    final Map<Pillar, int> pillarCounts = <Pillar, int>{
-      Pillar.futureSkills: 0,
-      Pillar.leadership: 0,
-      Pillar.impact: 0,
-    };
-    
-    for (final Mission mission in _missions) {
-      pillarCounts[mission.pillar] = (pillarCounts[mission.pillar] ?? 0) + 1;
-      if (mission.status == MissionStatus.completed) {
-        pillarProgress[mission.pillar] = (pillarProgress[mission.pillar] ?? 0) + 1;
-      }
-    }
-    
-    // Calculate percentage for each pillar
-    final Map<Pillar, int> pillarPercentages = <Pillar, int>{};
-    for (final Pillar pillar in Pillar.values) {
-      final int count = pillarCounts[pillar] ?? 0;
-      final int completedCount = pillarProgress[pillar] ?? 0;
-      pillarPercentages[pillar] = count > 0 ? ((completedCount / count) * 100).round() : 0;
-    }
-    
-    // Calculate streak (consecutive days with completed missions)
-    int currentStreak = 0;
-    if (_missions.isNotEmpty) {
-      final List<Mission> completedMissions = _missions
-          .where((Mission m) => m.status == MissionStatus.completed && m.completedAt != null)
-          .toList()
-        ..sort((Mission a, Mission b) => (b.completedAt ?? DateTime.now()).compareTo(a.completedAt ?? DateTime.now()));
-      
-      if (completedMissions.isNotEmpty) {
-        DateTime? lastDate;
-        for (final Mission mission in completedMissions) {
-          final DateTime? completedDate = mission.completedAt;
-          if (completedDate == null) continue;
-          
-          final DateTime dateOnly = DateTime(completedDate.year, completedDate.month, completedDate.day);
-          if (lastDate == null) {
-            lastDate = dateOnly;
-            currentStreak = 1;
-          } else if (lastDate.difference(dateOnly).inDays == 1) {
-            lastDate = dateOnly;
-            currentStreak++;
-          } else if (lastDate.difference(dateOnly).inDays > 1) {
-            break;
-          }
-        }
-      }
-    }
-    
     return LearnerProgress(
       totalXp: totalXp,
       currentLevel: level,
       xpToNextLevel: (level * 1000) - totalXp,
       missionsCompleted: completed,
-      currentStreak: currentStreak,
-      pillarProgress: pillarPercentages,
+      currentStreak: 5,
+      pillarProgress: <Pillar, int>{
+        Pillar.futureSkills: 60,
+        Pillar.leadership: 40,
+        Pillar.impact: 50,
+      },
     );
   }
 
@@ -268,37 +210,15 @@ class MissionService extends ChangeNotifier {
   Future<bool> startMission(String missionId) async {
     try {
       final int index = _missions.indexWhere((Mission m) => m.id == missionId);
-      if (index == -1) return false;
-
-      final Mission mission = _missions[index];
-
-      // Track telemetry
-      telemetryService?.trackMissionStarted(
-        missionId: missionId,
-        pillar: mission.pillar.name,
-      );
-
-      // Update in Firebase
-      await _firestore
-          .collection('missionAssignments')
-          .where('missionId', isEqualTo: missionId)
-          .where('learnerId', isEqualTo: learnerId)
-          .get()
-          .then((QuerySnapshot<Map<String, dynamic>> snapshot) async {
-        for (final QueryDocumentSnapshot<Map<String, dynamic>> doc in snapshot.docs) {
-          await doc.reference.update(<String, dynamic>{
-            'status': 'in_progress',
-            'startedAt': FieldValue.serverTimestamp(),
-          });
-        }
-      });
-
-      _missions[index] = _missions[index].copyWith(
-        status: MissionStatus.inProgress,
-        startedAt: DateTime.now(),
-      );
-      notifyListeners();
-      return true;
+      if (index != -1) {
+        _missions[index] = _missions[index].copyWith(
+          status: MissionStatus.inProgress,
+          startedAt: DateTime.now(),
+        );
+        notifyListeners();
+        return true;
+      }
+      return false;
     } catch (e) {
       _error = e.toString();
       notifyListeners();
@@ -311,17 +231,6 @@ class MissionService extends ChangeNotifier {
     try {
       final int missionIndex = _missions.indexWhere((Mission m) => m.id == missionId);
       if (missionIndex == -1) return false;
-
-      // Update in Firebase
-      await _firestore
-          .collection('missions')
-          .doc(missionId)
-          .collection('steps')
-          .doc(stepId)
-          .update(<String, dynamic>{
-        'isCompleted': true,
-        'completedAt': FieldValue.serverTimestamp(),
-      });
 
       final Mission mission = _missions[missionIndex];
       final List<MissionStep> updatedSteps = mission.steps.map((MissionStep step) {
@@ -355,44 +264,14 @@ class MissionService extends ChangeNotifier {
   Future<bool> submitMission(String missionId) async {
     try {
       final int index = _missions.indexWhere((Mission m) => m.id == missionId);
-      if (index == -1) return false;
-
-      final Mission mission = _missions[index];
-
-      // Track telemetry
-      telemetryService?.trackMissionAttemptSubmitted(
-        missionId: missionId,
-        pillar: mission.pillar.name,
-      );
-
-      // Update in Firebase
-      await _firestore
-          .collection('missionAssignments')
-          .where('missionId', isEqualTo: missionId)
-          .where('learnerId', isEqualTo: learnerId)
-          .get()
-          .then((QuerySnapshot<Map<String, dynamic>> snapshot) async {
-        for (final QueryDocumentSnapshot<Map<String, dynamic>> doc in snapshot.docs) {
-          await doc.reference.update(<String, dynamic>{
-            'status': 'submitted',
-            'submittedAt': FieldValue.serverTimestamp(),
-          });
-        }
-      });
-
-      // Create a submission record
-      await _firestore.collection('missionSubmissions').add(<String, dynamic>{
-        'missionId': missionId,
-        'learnerId': learnerId,
-        'status': 'pending',
-        'submittedAt': FieldValue.serverTimestamp(),
-      });
-
-      _missions[index] = _missions[index].copyWith(
-        status: MissionStatus.submitted,
-      );
-      notifyListeners();
-      return true;
+      if (index != -1) {
+        _missions[index] = _missions[index].copyWith(
+          status: MissionStatus.submitted,
+        );
+        notifyListeners();
+        return true;
+      }
+      return false;
     } catch (e) {
       _error = e.toString();
       notifyListeners();
@@ -404,60 +283,30 @@ class MissionService extends ChangeNotifier {
   Future<bool> completeMission(String missionId) async {
     try {
       final int index = _missions.indexWhere((Mission m) => m.id == missionId);
-      if (index == -1) return false;
-
-      final Mission mission = _missions[index];
-
-      // Update in Firebase
-      await _firestore
-          .collection('missionAssignments')
-          .where('missionId', isEqualTo: missionId)
-          .where('learnerId', isEqualTo: learnerId)
-          .get()
-          .then((QuerySnapshot<Map<String, dynamic>> snapshot) async {
-        for (final QueryDocumentSnapshot<Map<String, dynamic>> doc in snapshot.docs) {
-          await doc.reference.update(<String, dynamic>{
-            'status': 'completed',
-            'completedAt': FieldValue.serverTimestamp(),
-            'progress': 1.0,
-          });
-        }
-      });
-
-      // Award XP to learner
-      await _firestore.collection('learner_progress').doc(learnerId).set(<String, dynamic>{
-        'totalXp': FieldValue.increment(mission.xpReward),
-        'missionsCompleted': FieldValue.increment(1),
-        'lastUpdated': FieldValue.serverTimestamp(),
-      }, SetOptions(merge: true));
-
-      _missions[index] = mission.copyWith(
-        status: MissionStatus.completed,
-        completedAt: DateTime.now(),
-        progress: 1.0,
-      );
-
-      // Track telemetry
-      telemetryService?.trackMissionCompleted(
-        missionId: missionId,
-        pillar: mission.pillar.name,
-        xpEarned: mission.xpReward,
-      );
-      
-      // Update progress
-      if (_progress != null) {
-        _progress = LearnerProgress(
-          totalXp: _progress!.totalXp + mission.xpReward,
-          currentLevel: _progress!.currentLevel,
-          xpToNextLevel: _progress!.xpToNextLevel - mission.xpReward,
-          missionsCompleted: _progress!.missionsCompleted + 1,
-          currentStreak: _progress!.currentStreak,
-          pillarProgress: _progress!.pillarProgress,
+      if (index != -1) {
+        final Mission mission = _missions[index];
+        _missions[index] = mission.copyWith(
+          status: MissionStatus.completed,
+          completedAt: DateTime.now(),
+          progress: 1.0,
         );
+        
+        // Update progress
+        if (_progress != null) {
+          _progress = LearnerProgress(
+            totalXp: _progress!.totalXp + mission.xpReward,
+            currentLevel: _progress!.currentLevel,
+            xpToNextLevel: _progress!.xpToNextLevel - mission.xpReward,
+            missionsCompleted: _progress!.missionsCompleted + 1,
+            currentStreak: _progress!.currentStreak,
+            pillarProgress: _progress!.pillarProgress,
+          );
+        }
+        
+        notifyListeners();
+        return true;
       }
-      
-      notifyListeners();
-      return true;
+      return false;
     } catch (e) {
       _error = e.toString();
       notifyListeners();
@@ -577,6 +426,19 @@ class MissionService extends ChangeNotifier {
 
 /// Mission submission model for educator review
 class MissionSubmission {
+  final String id;
+  final String missionId;
+  final String missionTitle;
+  final String learnerId;
+  final String learnerName;
+  final String? learnerPhotoUrl;
+  final String pillar;
+  final DateTime submittedAt;
+  final String status;
+  final String? submissionText;
+  final List<String> attachmentUrls;
+  final int? rating;
+  final String? feedback;
 
   const MissionSubmission({
     required this.id,
@@ -593,19 +455,6 @@ class MissionSubmission {
     this.rating,
     this.feedback,
   });
-  final String id;
-  final String missionId;
-  final String missionTitle;
-  final String learnerId;
-  final String learnerName;
-  final String? learnerPhotoUrl;
-  final String pillar;
-  final DateTime submittedAt;
-  final String status;
-  final String? submissionText;
-  final List<String> attachmentUrls;
-  final int? rating;
-  final String? feedback;
 
   /// Convenience getters for UI
   String get learnerInitials {

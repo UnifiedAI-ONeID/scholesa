@@ -1,17 +1,17 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/foundation.dart';
-import '../../services/telemetry_service.dart';
+import '../../services/firestore_service.dart';
 import 'educator_models.dart';
 
 /// Service for educator-specific features - wired to Firebase
 class EducatorService extends ChangeNotifier {
 
   EducatorService({
-    this.educatorId,
-    this.telemetryService,
-  });
-  final String? educatorId;
-  final TelemetryService? telemetryService;
+    required FirestoreService firestoreService,
+    required this.educatorId,
+  }) : _firestoreService = firestoreService;
+  final FirestoreService _firestoreService;
+  final String educatorId;
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
 
   List<TodayClass> _todayClasses = <TodayClass>[];
@@ -30,13 +30,6 @@ class EducatorService extends ChangeNotifier {
 
   /// Load today's schedule from Firebase
   Future<void> loadTodaySchedule() async {
-    if (educatorId == null) {
-      _error = 'Not logged in. Please log in to view your schedule.';
-      notifyListeners();
-      return;
-    }
-    final String currentEducatorId = educatorId!;
-
     _isLoading = true;
     _error = null;
     notifyListeners();
@@ -49,7 +42,7 @@ class EducatorService extends ChangeNotifier {
       // Query session occurrences for this educator today
       final QuerySnapshot<Map<String, dynamic>> snapshot = await _firestore
           .collection('sessionOccurrences')
-          .where('educatorId', isEqualTo: currentEducatorId)
+          .where('educatorId', isEqualTo: educatorId)
           .where('date', isGreaterThanOrEqualTo: Timestamp.fromDate(startOfDay))
           .where('date', isLessThan: Timestamp.fromDate(endOfDay))
           .orderBy('date')
@@ -69,6 +62,7 @@ class EducatorService extends ChangeNotifier {
           enrolledCount: data['enrolledCount'] as int? ?? 0,
           presentCount: data['presentCount'] as int? ?? 0,
           status: data['status'] as String? ?? 'upcoming',
+          learners: <EnrolledLearner>[],
         );
       }).toList();
 
@@ -119,26 +113,7 @@ class EducatorService extends ChangeNotifier {
       final int index = _todayClasses.indexWhere((TodayClass c) => c.id == classId);
       if (index == -1) return false;
       
-      // Update status in Firebase
-      await _firestore.collection('sessionOccurrences').doc(classId).update(<String, dynamic>{
-        'status': 'in_progress',
-        'actualStartTime': FieldValue.serverTimestamp(),
-      });
-
-      // Update local state
-      _todayClasses[index] = TodayClass(
-        id: _todayClasses[index].id,
-        sessionId: _todayClasses[index].sessionId,
-        title: _todayClasses[index].title,
-        description: _todayClasses[index].description,
-        startTime: _todayClasses[index].startTime,
-        endTime: _todayClasses[index].endTime,
-        location: _todayClasses[index].location,
-        enrolledCount: _todayClasses[index].enrolledCount,
-        presentCount: _todayClasses[index].presentCount,
-        status: 'in_progress',
-      );
-
+      // In real implementation, would update server
       notifyListeners();
       return true;
     } catch (e) {
@@ -266,84 +241,6 @@ class EducatorService extends ChangeNotifier {
     } finally {
       _isLoading = false;
       notifyListeners();
-    }
-  }
-
-  // ========== Learner Intelligence & Supports (docs/22, 23) ==========
-
-  /// Track when educator views learner insights
-  void trackInsightViewed({
-    required String insightType,
-    required String learnerId,
-  }) {
-    telemetryService?.trackInsightViewed(
-      insightType: insightType,
-      learnerId: learnerId,
-    );
-  }
-
-  /// Track when educator applies a support strategy
-  Future<bool> applySupport({
-    required String learnerId,
-    required String supportType,
-    String? notes,
-  }) async {
-    try {
-      // Log support application to Firestore
-      await _firestore.collection('supportApplications').add(<String, dynamic>{
-        'educatorId': educatorId,
-        'learnerId': learnerId,
-        'supportType': supportType,
-        'notes': notes,
-        'appliedAt': FieldValue.serverTimestamp(),
-      });
-
-      // Track telemetry
-      telemetryService?.trackSupportApplied(
-        supportType: supportType,
-        learnerId: learnerId,
-      );
-
-      notifyListeners();
-      return true;
-    } catch (e) {
-      _error = 'Failed to apply support: $e';
-      notifyListeners();
-      return false;
-    }
-  }
-
-  /// Track support outcome (what worked)
-  Future<bool> logSupportOutcome({
-    required String learnerId,
-    required String supportType,
-    required String outcome, // 'helped', 'did_not_help', 'needs_adjustment'
-    String? notes,
-  }) async {
-    try {
-      // Log outcome to Firestore
-      await _firestore.collection('supportOutcomes').add(<String, dynamic>{
-        'educatorId': educatorId,
-        'learnerId': learnerId,
-        'supportType': supportType,
-        'outcome': outcome,
-        'notes': notes,
-        'loggedAt': FieldValue.serverTimestamp(),
-      });
-
-      // Track telemetry
-      telemetryService?.trackSupportOutcomeLogged(
-        supportType: supportType,
-        outcome: outcome,
-        learnerId: learnerId,
-      );
-
-      notifyListeners();
-      return true;
-    } catch (e) {
-      _error = 'Failed to log support outcome: $e';
-      notifyListeners();
-      return false;
     }
   }
 }

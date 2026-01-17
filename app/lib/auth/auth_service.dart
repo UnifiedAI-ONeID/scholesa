@@ -1,7 +1,7 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart';
-import '../services/telemetry_service.dart';
+import 'package:google_sign_in/google_sign_in.dart';
+import '../services/firestore_service.dart';
 import 'app_state.dart';
 
 /// Service for handling Firebase authentication
@@ -9,16 +9,19 @@ class AuthService {
 
   AuthService({
     required FirebaseAuth auth,
+    required FirestoreService firestoreService,
     required AppState appState,
-    this.telemetryService,
-    FirebaseFirestore? firestore,
+    GoogleSignIn? googleSignIn,
   })  : _auth = auth,
+        _firestoreService = firestoreService,
         _appState = appState,
-        _firestore = firestore ?? FirebaseFirestore.instance;
+        _googleSignIn = googleSignIn ?? GoogleSignIn(
+          scopes: <String>['email', 'profile'],
+        );
   final FirebaseAuth _auth;
+  final FirestoreService _firestoreService;
   final AppState _appState;
-  final FirebaseFirestore _firestore;
-  final TelemetryService? telemetryService;
+  final GoogleSignIn _googleSignIn;
 
   /// Current Firebase user
   User? get currentUser => _auth.currentUser;
@@ -38,17 +41,8 @@ class AuthService {
         password: password,
       );
       await _bootstrapSession();
-      
-      // Track successful login telemetry
-      await telemetryService?.trackLogin(method: 'email');
     } on FirebaseAuthException catch (e) {
       _appState.setError(_mapAuthError(e.code));
-      
-      // Track failed login telemetry
-      await telemetryService?.logEvent('auth.login_failed', metadata: <String, dynamic>{
-        'method': 'email',
-        'errorCode': e.code,
-      });
       rethrow;
     } catch (e) {
       _appState.setError('An unexpected error occurred');
@@ -69,6 +63,8 @@ class AuthService {
         password: password,
       );
       await credential.user?.updateDisplayName(displayName);
+      // Create user profile in Firestore
+      await _firestoreService.createUserProfile(displayName: displayName);
       await _bootstrapSession();
     } on FirebaseAuthException catch (e) {
       _appState.setError(_mapAuthError(e.code));
@@ -81,63 +77,124 @@ class AuthService {
 
   /// Sign out
   Future<void> signOut() async {
-    await telemetryService?.trackLogout();
+    // Sign out from Google if signed in with Google
+    try {
+      await _googleSignIn.signOut();
+    } catch (_) {
+      // Ignore if not signed in with Google
+    }
     await _auth.signOut();
     _appState.clear();
   }
 
-  /// Bootstrap session by loading user profile from Firestore
-  Future<void> _bootstrapSession() async {
+  /// Sign in with Google
+  Future<void> signInWithGoogle() async {
     try {
-      final User? user = currentUser;
-      if (user == null) {
-        _appState.setError('No authenticated user');
-        return;
-      }
+      _appState.setLoading(true);
+      _appState.clearError();
 
-      // First, try to find user doc by UID
-      DocumentSnapshot<Map<String, dynamic>> userDoc = 
-          await _firestore.collection('users').doc(user.uid).get();
-
-      if (!userDoc.exists) {
-        // Check if there's an invited user doc by email
-        final String inviteDocId = 'invite_${user.email?.toLowerCase().replaceAll(RegExp(r'[^a-z0-9]'), '_') ?? ''}';
-        final DocumentSnapshot<Map<String, dynamic>> inviteDoc = 
-            await _firestore.collection('users').doc(inviteDocId).get();
+      if (kIsWeb) {
+        // Web: Use popup sign-in
+        final GoogleAuthProvider googleProvider = GoogleAuthProvider();
+        googleProvider.addScope('email');
+        googleProvider.addScope('profile');
         
-        if (inviteDoc.exists) {
-          // Migrate invited user to real UID
-          final Map<String, dynamic> inviteData = inviteDoc.data()!;
-          await _firestore.collection('users').doc(user.uid).set(<String, dynamic>{
-            ...inviteData,
-            'email': user.email,
-            'displayName': user.displayName ?? inviteData['displayName'],
-            'status': 'active',
-            'activatedAt': FieldValue.serverTimestamp(),
-            'updatedAt': FieldValue.serverTimestamp(),
-          });
-          // Delete the invite doc
-          await _firestore.collection('users').doc(inviteDocId).delete();
-          // Reload the user doc
-          userDoc = await _firestore.collection('users').doc(user.uid).get();
-          debugPrint('Migrated invited user $inviteDocId to UID ${user.uid}');
-        } else {
-          // Create new user document with default role (needs admin to assign proper role)
-          await _firestore.collection('users').doc(user.uid).set(<String, dynamic>{
-            'email': user.email,
-            'displayName': user.displayName ?? user.email?.split('@').first,
-            'createdAt': FieldValue.serverTimestamp(),
-            'status': 'pending',
-            'role': null, // No role - needs admin assignment
-            'siteIds': <String>[],
-          });
-          // Fetch again
-          userDoc = await _firestore.collection('users').doc(user.uid).get();
-          debugPrint('Created new user doc for ${user.uid} - needs role assignment');
+        await _auth.signInWithPopup(googleProvider);
+      } else {
+        // Mobile: Use native Google Sign-In
+        final GoogleSignInAccount? googleUser = await _googleSignIn.signIn();
+        
+        if (googleUser == null) {
+          // User cancelled the sign-in
+          _appState.setLoading(false);
+          return;
+        }
+
+        final GoogleSignInAuthentication googleAuth = await googleUser.authentication;
+        final OAuthCredential credential = GoogleAuthProvider.credential(
+          accessToken: googleAuth.accessToken,
+          idToken: googleAuth.idToken,
+        );
+
+        await _auth.signInWithCredential(credential);
+      }
+      
+      // Ensure user profile exists in Firestore
+      final User? user = _auth.currentUser;
+      if (user != null) {
+        final Map<String, dynamic>? existingProfile = await _firestoreService.getUserProfile();
+        if (existingProfile == null) {
+          // Create profile for new SSO user
+          await _firestoreService.createUserProfile(
+            displayName: user.displayName ?? user.email?.split('@').first ?? 'User',
+          );
         }
       }
       
-      _updateAppStateFromDoc(user.uid, userDoc.data());
+      await _bootstrapSession();
+    } on FirebaseAuthException catch (e) {
+      _appState.setError(_mapAuthError(e.code));
+      rethrow;
+    } catch (e) {
+      debugPrint('Google sign-in error: $e');
+      _appState.setError('Failed to sign in with Google');
+      rethrow;
+    }
+  }
+
+  /// Sign in with Microsoft (via Firebase Auth)
+  Future<void> signInWithMicrosoft() async {
+    try {
+      _appState.setLoading(true);
+      _appState.clearError();
+
+      final OAuthProvider microsoftProvider = OAuthProvider('microsoft.com');
+      microsoftProvider.addScope('email');
+      microsoftProvider.addScope('profile');
+      microsoftProvider.addScope('openid');
+      
+      // Set custom parameters for Microsoft login
+      // Using Firebase auth handler: https://studio-3328096157-e3f79.firebaseapp.com/__/auth/handler
+      microsoftProvider.setCustomParameters(<String, String>{
+        'prompt': 'select_account',
+        'tenant': 'common', // Allow any Microsoft account (personal or work/school)
+      });
+
+      if (kIsWeb) {
+        await _auth.signInWithPopup(microsoftProvider);
+      } else {
+        await _auth.signInWithProvider(microsoftProvider);
+      }
+      
+      // Ensure user profile exists in Firestore
+      final User? user = _auth.currentUser;
+      if (user != null) {
+        final Map<String, dynamic>? existingProfile = await _firestoreService.getUserProfile();
+        if (existingProfile == null) {
+          await _firestoreService.createUserProfile(
+            displayName: user.displayName ?? user.email?.split('@').first ?? 'User',
+          );
+        }
+      }
+      
+      await _bootstrapSession();
+    } on FirebaseAuthException catch (e) {
+      _appState.setError(_mapAuthError(e.code));
+      rethrow;
+    } catch (e) {
+      debugPrint('Microsoft sign-in error: $e');
+      _appState.setError('Failed to sign in with Microsoft');
+      rethrow;
+    }
+  }
+
+  /// Bootstrap session by fetching user profile from Firestore
+  Future<void> _bootstrapSession() async {
+    try {
+      final Map<String, dynamic>? profile = await _firestoreService.getUserProfile();
+      if (profile != null) {
+        _appState.updateFromMeResponse(profile);
+      }
     } catch (e) {
       debugPrint('Failed to bootstrap session: $e');
       _appState.setError('Failed to load user profile');
@@ -145,20 +202,7 @@ class AuthService {
     }
   }
 
-  /// Update AppState from Firestore document
-  void _updateAppStateFromDoc(String odId, Map<String, dynamic>? data) {
-    if (data == null) return;
-    _appState.updateFromMeResponse(<String, dynamic>{
-      'userId': odId,
-      'email': data['email'] as String?,
-      'displayName': data['displayName'] as String?,
-      'role': data['role'] as String?,
-      'activeSiteId': data['activeSiteId'] as String?,
-      'siteIds': data['siteIds'] as List<dynamic>? ?? <dynamic>[],
-    });
-  }
-
-  /// Refresh session (call /v1/me again)
+  /// Refresh session (fetch profile from Firestore again)
   Future<void> refreshSession() async {
     if (currentUser == null) return;
     await _bootstrapSession();

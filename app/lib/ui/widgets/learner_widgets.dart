@@ -583,7 +583,7 @@ class PortfolioCard extends StatelessWidget {
     required this.type,
     this.thumbnailUrl,
     required this.date,
-    this.skills = const <String>[],
+    this.skills = const [],
     this.onTap,
   });
   final String title;

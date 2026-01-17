@@ -92,7 +92,7 @@ class _HqFeatureFlagsPageState extends State<HqFeatureFlagsPage> {
         children: <Widget>[
           _buildInfoCard(),
           const SizedBox(height: 24),
-          ..._flags.map((_FeatureFlag flag) => _buildFlagCard(flag)),
+          ..._flags.map((flag) => _buildFlagCard(flag)),
         ],
       ),
     );
@@ -154,7 +154,7 @@ class _HqFeatureFlagsPageState extends State<HqFeatureFlagsPage> {
                       const SizedBox(height: 4),
                       Text(
                         flag.description,
-                        style: const TextStyle(fontSize: 13, color: ScholesaColors.textSecondary),
+                        style: TextStyle(fontSize: 13, color: ScholesaColors.textSecondary),
                       ),
                     ],
                   ),
@@ -170,7 +170,7 @@ class _HqFeatureFlagsPageState extends State<HqFeatureFlagsPage> {
                       ),
                     );
                   },
-                  activeThumbColor: Colors.green,
+                  activeColor: Colors.green,
                 ),
               ],
             ),

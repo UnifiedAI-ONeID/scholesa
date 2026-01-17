@@ -62,6 +62,7 @@ class EducatorIntegrationsPage extends StatelessWidget {
             icon: Icons.dashboard_rounded,
             color: Colors.red,
             isConnected: false,
+            syncStatus: null,
           ),
           const SizedBox(height: 12),
           _buildIntegrationCard(
@@ -70,6 +71,7 @@ class EducatorIntegrationsPage extends StatelessWidget {
             icon: Icons.groups_rounded,
             color: Colors.purple,
             isConnected: false,
+            syncStatus: null,
           ),
         ],
       ),
@@ -153,7 +155,7 @@ class EducatorIntegrationsPage extends StatelessWidget {
                         const SizedBox(width: 6),
                         Text(
                           syncStatus,
-                          style: const TextStyle(
+                          style: TextStyle(
                             fontSize: 12,
                             color: ScholesaColors.textSecondary,
                           ),
@@ -164,7 +166,8 @@ class EducatorIntegrationsPage extends StatelessWidget {
                 ],
               ),
             ),
-            if (isConnected) PopupMenuButton<String>(
+            isConnected
+                ? PopupMenuButton<String>(
                     icon: const Icon(Icons.more_vert_rounded),
                     onSelected: (String value) {
                       ScaffoldMessenger.of(context).showSnackBar(
@@ -176,7 +179,8 @@ class EducatorIntegrationsPage extends StatelessWidget {
                       const PopupMenuItem<String>(value: 'Settings', child: Text('Settings')),
                       const PopupMenuItem<String>(value: 'Disconnect', child: Text('Disconnect')),
                     ],
-                  ) else ElevatedButton(
+                  )
+                : ElevatedButton(
                     onPressed: () {
                       ScaffoldMessenger.of(context).showSnackBar(
                         SnackBar(content: Text('Connecting $name...')),

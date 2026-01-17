@@ -262,7 +262,7 @@ class _HqSitesPageState extends State<HqSitesPage> {
   }
 
   void _createNewSite() {
-    showModalBottomSheet<void>(
+    showModalBottomSheet(
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,

@@ -88,7 +88,7 @@ class Skill extends Equatable {
       name: json['name'] as String,
       description: json['description'] as String?,
       pillar: Pillar.values.firstWhere(
-        (Pillar p) => p.name == json['pillar'],
+        (p) => p.name == json['pillar'],
         orElse: () => Pillar.futureSkills,
       ),
       level: json['level'] as int? ?? 1,
@@ -186,8 +186,8 @@ class Mission extends Equatable {
     this.imageUrl,
     required this.pillar,
     required this.difficulty,
-    this.skills = const <Skill>[],
-    this.steps = const <MissionStep>[],
+    this.skills = const [],
+    this.steps = const [],
     this.status = MissionStatus.notStarted,
     this.xpReward = 100,
     this.dueDate,
@@ -205,23 +205,23 @@ class Mission extends Equatable {
       description: json['description'] as String,
       imageUrl: json['imageUrl'] as String?,
       pillar: Pillar.values.firstWhere(
-        (Pillar p) => p.name == json['pillar'],
+        (p) => p.name == json['pillar'],
         orElse: () => Pillar.futureSkills,
       ),
       difficulty: DifficultyLevel.values.firstWhere(
-        (DifficultyLevel d) => d.name == json['difficulty'],
+        (d) => d.name == json['difficulty'],
         orElse: () => DifficultyLevel.beginner,
       ),
       skills: (json['skills'] as List<dynamic>?)
               ?.map((s) => Skill.fromJson(s as Map<String, dynamic>))
               .toList() ??
-          <Skill>[],
+          [],
       steps: (json['steps'] as List<dynamic>?)
               ?.map((s) => MissionStep.fromJson(s as Map<String, dynamic>))
               .toList() ??
-          <MissionStep>[],
+          [],
       status: MissionStatus.values.firstWhere(
-        (MissionStatus s) => s.name == json['status'],
+        (s) => s.name == json['status'],
         orElse: () => MissionStatus.notStarted,
       ),
       xpReward: json['xpReward'] as int? ?? 100,
@@ -359,8 +359,8 @@ class LearnerProgress extends Equatable {
       missionsCompleted: json['missionsCompleted'] as int,
       currentStreak: json['currentStreak'] as int,
       pillarProgress: (json['pillarProgress'] as Map<String, dynamic>).map(
-        (String key, value) => MapEntry(
-          Pillar.values.firstWhere((Pillar p) => p.name == key),
+        (key, value) => MapEntry(
+          Pillar.values.firstWhere((p) => p.name == key),
           value as int,
         ),
       ),

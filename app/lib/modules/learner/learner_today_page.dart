@@ -1,10 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
-
 import '../../ui/theme/scholesa_theme.dart';
-import '../habits/habits.dart';
 import '../missions/missions.dart';
+import '../habits/habits.dart';
 
 /// Learner Today Page - Daily summary for learners
 class LearnerTodayPage extends StatefulWidget {

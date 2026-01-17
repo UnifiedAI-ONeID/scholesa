@@ -1,7 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
 import '../../ui/theme/scholesa_theme.dart';
-import '../site/incident_service.dart';
 
 /// HQ Safety page for monitoring safety incidents across all sites
 /// Based on docs/41_SAFETY_CONSENT_INCIDENTS_SPEC.md
@@ -12,14 +10,53 @@ class HqSafetyPage extends StatefulWidget {
   State<HqSafetyPage> createState() => _HqSafetyPageState();
 }
 
+enum _Severity { minor, major, critical }
+
+class _SafetyIncident {
+  const _SafetyIncident({
+    required this.id,
+    required this.title,
+    required this.site,
+    required this.severity,
+    required this.reportedAt,
+    required this.isEscalated,
+  });
+
+  final String id;
+  final String title;
+  final String site;
+  final _Severity severity;
+  final DateTime reportedAt;
+  final bool isEscalated;
+}
+
 class _HqSafetyPageState extends State<HqSafetyPage> {
-  @override
-  void initState() {
-    super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      context.read<IncidentService>().loadIncidents();
-    });
-  }
+  final List<_SafetyIncident> _incidents = <_SafetyIncident>[
+    _SafetyIncident(
+      id: '1',
+      title: 'Medical emergency - handled',
+      site: 'Downtown Studio',
+      severity: _Severity.critical,
+      reportedAt: DateTime.now().subtract(const Duration(hours: 2)),
+      isEscalated: true,
+    ),
+    _SafetyIncident(
+      id: '2',
+      title: 'Minor bump during play',
+      site: 'Westside Campus',
+      severity: _Severity.minor,
+      reportedAt: DateTime.now().subtract(const Duration(days: 1)),
+      isEscalated: false,
+    ),
+    _SafetyIncident(
+      id: '3',
+      title: 'Behavioral concern',
+      site: 'Downtown Studio',
+      severity: _Severity.major,
+      reportedAt: DateTime.now().subtract(const Duration(days: 2)),
+      isEscalated: true,
+    ),
+  ];
 
   @override
   Widget build(BuildContext context) {
@@ -29,66 +66,21 @@ class _HqSafetyPageState extends State<HqSafetyPage> {
         title: const Text('Safety Overview'),
         backgroundColor: ScholesaColors.safetyGradient.colors.first,
         foregroundColor: Colors.white,
-        actions: <Widget>[
-          IconButton(
-            icon: const Icon(Icons.refresh_rounded),
-            onPressed: () => context.read<IncidentService>().loadIncidents(),
-            tooltip: 'Refresh',
-          ),
-        ],
       ),
-      body: Consumer<IncidentService>(
-        builder: (BuildContext context, IncidentService service, Widget? child) {
-          if (service.isLoading) {
-            return const Center(child: CircularProgressIndicator());
-          }
-          if (service.error != null) {
-            return Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: <Widget>[
-                  Icon(Icons.error_outline, size: 48, color: Colors.red.shade400),
-                  const SizedBox(height: 16),
-                  Text('Error: ${service.error}'),
-                  const SizedBox(height: 16),
-                  ElevatedButton(
-                    onPressed: () => service.loadIncidents(),
-                    child: const Text('Retry'),
-                  ),
-                ],
-              ),
-            );
-          }
-          if (service.incidents.isEmpty) {
-            return Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: <Widget>[
-                  Icon(Icons.verified_user_rounded, size: 64, color: Colors.green.shade400),
-                  const SizedBox(height: 16),
-                  const Text('No safety incidents reported', style: TextStyle(fontSize: 18)),
-                  const SizedBox(height: 8),
-                  const Text('All sites operating safely', style: TextStyle(color: ScholesaColors.textSecondary)),
-                ],
-              ),
-            );
-          }
-          return ListView(
-            padding: const EdgeInsets.all(16),
-            children: <Widget>[
-              _buildSafetyMetrics(service),
-              const SizedBox(height: 24),
-              _buildEscalatedSection(service),
-              const SizedBox(height: 24),
-              _buildRecentIncidents(service),
-            ],
-          );
-        },
+      body: ListView(
+        padding: const EdgeInsets.all(16),
+        children: <Widget>[
+          _buildSafetyMetrics(),
+          const SizedBox(height: 24),
+          _buildEscalatedSection(),
+          const SizedBox(height: 24),
+          _buildRecentIncidents(),
+        ],
       ),
     );
   }
 
-  Widget _buildSafetyMetrics(IncidentService service) {
+  Widget _buildSafetyMetrics() {
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
@@ -98,9 +90,9 @@ class _HqSafetyPageState extends State<HqSafetyPage> {
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceAround,
         children: <Widget>[
-          _buildMetric('Open', service.openIncidents.length.toString(), Icons.warning_rounded),
-          _buildMetric('Major', service.majorIncidents.length.toString(), Icons.priority_high_rounded),
-          _buildMetric('Critical', service.criticalIncidents.length.toString(), Icons.error_rounded),
+          _buildMetric('Open', _incidents.length.toString(), Icons.warning_rounded),
+          _buildMetric('Escalated', _incidents.where((_SafetyIncident i) => i.isEscalated).length.toString(), Icons.priority_high_rounded),
+          _buildMetric('Critical', _incidents.where((_SafetyIncident i) => i.severity == _Severity.critical).length.toString(), Icons.error_rounded),
         ],
       ),
     );
@@ -117,11 +109,8 @@ class _HqSafetyPageState extends State<HqSafetyPage> {
     );
   }
 
-  Widget _buildEscalatedSection(IncidentService service) {
-    // Critical and major incidents are escalated to HQ
-    final List<Incident> escalated = service.incidents
-        .where((Incident i) => i.severity == IncidentSeverity.critical || i.severity == IncidentSeverity.major)
-        .toList();
+  Widget _buildEscalatedSection() {
+    final List<_SafetyIncident> escalated = _incidents.where((_SafetyIncident i) => i.isEscalated).toList();
     if (escalated.isEmpty) return const SizedBox.shrink();
 
     return Column(
@@ -132,32 +121,32 @@ class _HqSafetyPageState extends State<HqSafetyPage> {
             Icon(Icons.priority_high_rounded, color: Colors.red.shade700, size: 20),
             const SizedBox(width: 8),
             Text(
-              'Escalated to HQ (${escalated.length})',
+              'Escalated to HQ',
               style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.red.shade700),
             ),
           ],
         ),
         const SizedBox(height: 12),
-        ...escalated.map((Incident incident) => _buildIncidentCard(incident, isEscalated: true)),
+        ...escalated.map((incident) => _buildIncidentCard(incident, isEscalated: true)),
       ],
     );
   }
 
-  Widget _buildRecentIncidents(IncidentService service) {
+  Widget _buildRecentIncidents() {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: <Widget>[
-        Text(
-          'All Recent Incidents (${service.incidents.length})',
-          style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: ScholesaColors.textPrimary),
+        const Text(
+          'All Recent Incidents',
+          style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: ScholesaColors.textPrimary),
         ),
         const SizedBox(height: 12),
-        ...service.incidents.map((Incident incident) => _buildIncidentCard(incident)),
+        ..._incidents.map((incident) => _buildIncidentCard(incident)),
       ],
     );
   }
 
-  Widget _buildIncidentCard(Incident incident, {bool isEscalated = false}) {
+  Widget _buildIncidentCard(_SafetyIncident incident, {bool isEscalated = false}) {
     return Card(
       margin: const EdgeInsets.only(bottom: 12),
       color: isEscalated ? Colors.red.shade50 : ScholesaColors.surface,
@@ -168,7 +157,7 @@ class _HqSafetyPageState extends State<HqSafetyPage> {
       child: ListTile(
         leading: _buildSeverityIcon(incident.severity),
         title: Text(incident.title, style: const TextStyle(fontWeight: FontWeight.w600)),
-        subtitle: Text('${incident.siteId} • ${_formatTime(incident.reportedAt)} • ${incident.status.name}'),
+        subtitle: Text('${incident.site} • ${_formatTime(incident.reportedAt)}'),
         trailing: IconButton(
           icon: const Icon(Icons.chevron_right_rounded),
           onPressed: () => _showIncidentDetails(incident),
@@ -178,14 +167,14 @@ class _HqSafetyPageState extends State<HqSafetyPage> {
     );
   }
 
-  Widget _buildSeverityIcon(IncidentSeverity severity) {
+  Widget _buildSeverityIcon(_Severity severity) {
     Color color;
     switch (severity) {
-      case IncidentSeverity.minor:
+      case _Severity.minor:
         color = Colors.orange;
-      case IncidentSeverity.major:
+      case _Severity.major:
         color = Colors.deepOrange;
-      case IncidentSeverity.critical:
+      case _Severity.critical:
         color = Colors.red;
     }
 
@@ -196,7 +185,7 @@ class _HqSafetyPageState extends State<HqSafetyPage> {
     );
   }
 
-  void _showIncidentDetails(Incident incident) {
+  void _showIncidentDetails(_SafetyIncident incident) {
     showModalBottomSheet<void>(
       context: context,
       backgroundColor: ScholesaColors.surface,
@@ -209,11 +198,10 @@ class _HqSafetyPageState extends State<HqSafetyPage> {
           children: <Widget>[
             Text(incident.title, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
             const SizedBox(height: 16),
-            _buildDetailRow('Site', incident.siteId),
+            _buildDetailRow('Site', incident.site),
             _buildDetailRow('Severity', incident.severity.name.toUpperCase()),
-            _buildDetailRow('Status', incident.status.name.toUpperCase()),
             _buildDetailRow('Reported', _formatTime(incident.reportedAt)),
-            if (incident.description.isNotEmpty) _buildDetailRow('Description', incident.description),
+            _buildDetailRow('Escalated', incident.isEscalated ? 'Yes' : 'No'),
             const SizedBox(height: 24),
             Row(
               children: <Widget>[
@@ -245,11 +233,9 @@ class _HqSafetyPageState extends State<HqSafetyPage> {
       padding: const EdgeInsets.only(bottom: 8),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        crossAxisAlignment: CrossAxisAlignment.start,
         children: <Widget>[
-          Text(label, style: const TextStyle(color: ScholesaColors.textSecondary)),
-          const SizedBox(width: 16),
-          Flexible(child: Text(value, style: const TextStyle(fontWeight: FontWeight.w500), textAlign: TextAlign.end)),
+          Text(label, style: TextStyle(color: ScholesaColors.textSecondary)),
+          Text(value, style: const TextStyle(fontWeight: FontWeight.w500)),
         ],
       ),
     );

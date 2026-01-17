@@ -187,19 +187,19 @@ class HqRoleSwitcherPage extends StatelessWidget {
 
   Widget _buildRoleGrid(BuildContext context) {
     final List<_RoleOption> roles = <_RoleOption>[
-      const _RoleOption(
+      _RoleOption(
         role: UserRole.learner,
         title: 'Learner',
         description: 'View missions, habits, and portfolio',
         icon: Icons.school_rounded,
         features: <String>[
-          "Today's schedule",
+          'Today\'s schedule',
           'Mission progress',
           'Habit tracking',
           'Portfolio showcase',
         ],
       ),
-      const _RoleOption(
+      _RoleOption(
         role: UserRole.educator,
         title: 'Educator',
         description: 'Manage classes and review submissions',
@@ -211,7 +211,7 @@ class HqRoleSwitcherPage extends StatelessWidget {
           'Student reviews',
         ],
       ),
-      const _RoleOption(
+      _RoleOption(
         role: UserRole.parent,
         title: 'Parent',
         description: 'Monitor child progress and billing',
@@ -223,7 +223,7 @@ class HqRoleSwitcherPage extends StatelessWidget {
           'Billing & invoices',
         ],
       ),
-      const _RoleOption(
+      _RoleOption(
         role: UserRole.site,
         title: 'Site Admin',
         description: 'Manage site operations',
@@ -235,7 +235,7 @@ class HqRoleSwitcherPage extends StatelessWidget {
           'Site billing',
         ],
       ),
-      const _RoleOption(
+      _RoleOption(
         role: UserRole.partner,
         title: 'Partner',
         description: 'Marketplace and contracts',
@@ -268,7 +268,7 @@ class HqRoleSwitcherPage extends StatelessWidget {
       ),
       child: Row(
         children: <Widget>[
-          const Icon(Icons.info_outline, color: ScholesaColors.warning, size: 20),
+          Icon(Icons.info_outline, color: ScholesaColors.warning, size: 20),
           const SizedBox(width: 12),
           Expanded(
             child: Text(

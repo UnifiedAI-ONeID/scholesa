@@ -157,6 +157,7 @@ class GuardianLink extends Equatable {
   final bool isPrimary;
   final DateTime createdAt;
   final String createdBy;
+  // Display names (resolved from user lookups)
   final String? parentName;
   final String? learnerName;
 
@@ -166,10 +167,8 @@ class GuardianLink extends Equatable {
         'learnerId': learnerId,
         'relationship': relationship,
         'isPrimary': isPrimary,
-        if (parentName != null) 'parentName': parentName,
-        if (learnerName != null) 'learnerName': learnerName,
       };
 
   @override
-  List<Object?> get props => <Object?>[id, siteId, parentId, learnerId, relationship, parentName, learnerName];
+  List<Object?> get props => <Object?>[id, siteId, parentId, learnerId, relationship];
 }

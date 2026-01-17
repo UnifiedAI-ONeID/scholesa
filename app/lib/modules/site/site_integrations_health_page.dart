@@ -32,7 +32,7 @@ class _SiteIntegrationsHealthPageState extends State<SiteIntegrationsHealthPage>
       syncedItems: 23,
       errors: 3,
     ),
-    const _Integration(
+    _Integration(
       id: '3',
       name: 'Canvas LMS',
       icon: Icons.dashboard_rounded,
@@ -77,7 +77,7 @@ class _SiteIntegrationsHealthPageState extends State<SiteIntegrationsHealthPage>
             ),
           ),
           const SizedBox(height: 12),
-          ..._integrations.map((_Integration integration) => _buildIntegrationCard(integration)),
+          ..._integrations.map((integration) => _buildIntegrationCard(integration)),
         ],
       ),
     );
@@ -245,7 +245,7 @@ class _SiteIntegrationsHealthPageState extends State<SiteIntegrationsHealthPage>
         ),
         Text(
           label,
-          style: const TextStyle(
+          style: TextStyle(
             fontSize: 11,
             color: ScholesaColors.textSecondary,
           ),

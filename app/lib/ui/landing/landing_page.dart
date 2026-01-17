@@ -205,6 +205,7 @@ class _LandingPageState extends State<LandingPage> with TickerProviderStateMixin
       ),
       child: isWide
           ? Row(
+              crossAxisAlignment: CrossAxisAlignment.center,
               children: <Widget>[
                 Expanded(
                   child: _buildHeroContent(context),
@@ -258,7 +259,7 @@ class _LandingPageState extends State<LandingPage> with TickerProviderStateMixin
         const SizedBox(height: 24),
         // Headline
         const Text(
-          "Unlock Every\nLearner's Potential",
+          'Unlock Every\nLearner\'s Potential',
           style: TextStyle(
             fontSize: 56,
             fontWeight: FontWeight.bold,
@@ -482,12 +483,13 @@ class _LandingPageState extends State<LandingPage> with TickerProviderStateMixin
           ),
           const SizedBox(height: 48),
           // Pillar cards
-          if (isWide) Row(
+          isWide
+              ? Row(
                   children: <Widget>[
                     Expanded(child: _buildPillarCard(
                       icon: Icons.computer_rounded,
                       title: 'Future Skills',
-                      description: "AI, coding, robotics, research, and digital literacy for tomorrow's world.",
+                      description: 'AI, coding, robotics, research, and digital literacy for tomorrow\'s world.',
                       color: ScholesaColors.futureSkills,
                       emoji: '🚀',
                     )),
@@ -508,12 +510,13 @@ class _LandingPageState extends State<LandingPage> with TickerProviderStateMixin
                       emoji: '🌍',
                     )),
                   ],
-                ) else Column(
+                )
+              : Column(
                   children: <Widget>[
                     _buildPillarCard(
                       icon: Icons.computer_rounded,
                       title: 'Future Skills',
-                      description: "AI, coding, robotics, research, and digital literacy for tomorrow's world.",
+                      description: 'AI, coding, robotics, research, and digital literacy for tomorrow\'s world.',
                       color: ScholesaColors.futureSkills,
                       emoji: '🚀',
                     ),

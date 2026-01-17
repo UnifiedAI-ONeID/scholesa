@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../ui/theme/scholesa_theme.dart';
+import '../missions/mission_models.dart';
 import '../missions/mission_service.dart';
 
 /// Educator Mission Review Page - Review and assess learner submissions
@@ -240,7 +241,7 @@ class _EducatorMissionReviewPageState extends State<EducatorMissionReviewPage> {
   }
 
   void _openReviewSheet(MissionSubmission submission) {
-    showModalBottomSheet<void>(
+    showModalBottomSheet(
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,

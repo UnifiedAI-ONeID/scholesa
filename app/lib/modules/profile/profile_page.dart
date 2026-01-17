@@ -76,7 +76,7 @@ class ProfilePage extends StatelessWidget {
 
   Widget _buildProfileCard(AppState appState, Color roleColor) {
     final String displayName = appState.displayName ?? 'User';
-    final String email = appState.email ?? 'No email set';
+    final String email = appState.email ?? 'email@example.com';
     final String roleName = appState.role?.name ?? 'learner';
 
     return Container(

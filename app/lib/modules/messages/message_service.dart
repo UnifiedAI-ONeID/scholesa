@@ -1,19 +1,18 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/foundation.dart';
-import '../../services/telemetry_service.dart';
+import '../../services/firestore_service.dart';
 import 'message_models.dart';
 
 /// Service for messages and notifications
 class MessageService extends ChangeNotifier {
 
   MessageService({
-    FirebaseFirestore? firestore,
-    this.userId,
-    this.telemetryService,
-  }) : _firestore = firestore ?? FirebaseFirestore.instance;
-  final FirebaseFirestore _firestore;
-  final String? userId;
-  final TelemetryService? telemetryService;
+    required FirestoreService firestoreService,
+    required this.userId,
+  }) : _firestoreService = firestoreService;
+  final FirestoreService _firestoreService;
+  final String userId;
+  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
 
   List<Message> _messages = <Message>[];
   List<Conversation> _conversations = <Conversation>[];
@@ -43,13 +42,6 @@ class MessageService extends ChangeNotifier {
 
   /// Load all messages from Firebase
   Future<void> loadMessages() async {
-    if (userId == null) {
-      _error = 'Not logged in. Please log in to view messages.';
-      notifyListeners();
-      return;
-    }
-    final String currentUserId = userId!;
-
     _isLoading = true;
     _error = null;
     notifyListeners();
@@ -58,9 +50,9 @@ class MessageService extends ChangeNotifier {
       // Load messages for this user
       final QuerySnapshot<Map<String, dynamic>> messagesSnapshot = await _firestore
           .collection('messages')
-          .where('recipientId', isEqualTo: currentUserId)
+          .where('recipientId', isEqualTo: userId)
           .orderBy('createdAt', descending: true)
-          .limit(100)
+          .limit(50)
           .get();
 
       _messages = messagesSnapshot.docs.map((QueryDocumentSnapshot<Map<String, dynamic>> doc) {
@@ -73,103 +65,93 @@ class MessageService extends ChangeNotifier {
           priority: _parseMessagePriority(data['priority'] as String?),
           senderId: data['senderId'] as String?,
           senderName: data['senderName'] as String?,
-          actionUrl: data['actionUrl'] as String?,
-          createdAt: (data['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
+          createdAt: _parseTimestamp(data['createdAt']) ?? DateTime.now(),
           isRead: data['isRead'] as bool? ?? false,
-          readAt: (data['readAt'] as Timestamp?)?.toDate(),
+          readAt: _parseTimestamp(data['readAt']),
+          actionUrl: data['actionUrl'] as String?,
         );
       }).toList();
 
-      // Load conversations
+      // Load conversations for this user
       final QuerySnapshot<Map<String, dynamic>> conversationsSnapshot = await _firestore
           .collection('conversations')
-          .where('participantIds', arrayContains: currentUserId)
+          .where('participantIds', arrayContains: userId)
           .orderBy('updatedAt', descending: true)
-          .limit(50)
+          .limit(20)
           .get();
 
-      _conversations = conversationsSnapshot.docs.map((QueryDocumentSnapshot<Map<String, dynamic>> doc) {
-        final Map<String, dynamic> data = doc.data();
-        final Map<String, dynamic>? lastMsgData = data['lastMessage'] as Map<String, dynamic>?;
-        
-        return Conversation(
-          id: doc.id,
-          participantIds: List<String>.from(data['participantIds'] as List<dynamic>? ?? <dynamic>[]),
-          participantNames: List<String>.from(data['participantNames'] as List<dynamic>? ?? <dynamic>[]),
-          lastMessage: lastMsgData != null ? Message(
-            id: lastMsgData['id'] as String? ?? '',
-            title: lastMsgData['title'] as String? ?? '',
-            body: lastMsgData['body'] as String? ?? '',
-            type: _parseMessageType(lastMsgData['type'] as String?),
-            senderName: lastMsgData['senderName'] as String?,
-            createdAt: (lastMsgData['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
-            isRead: lastMsgData['isRead'] as bool? ?? false,
-          ) : null,
-          updatedAt: (data['updatedAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
-          unreadCount: data['unreadCount'] as int? ?? 0,
-        );
-      }).toList();
+      _conversations = await Future.wait(
+        conversationsSnapshot.docs.map((QueryDocumentSnapshot<Map<String, dynamic>> doc) async {
+          final Map<String, dynamic> data = doc.data();
+          final List<String> participantIds = List<String>.from(data['participantIds'] as List? ?? <String>[]);
+          final List<String> participantNames = List<String>.from(data['participantNames'] as List? ?? <String>[]);
+
+          // Get the last message in the conversation
+          final QuerySnapshot<Map<String, dynamic>> lastMsgSnapshot = await _firestore
+              .collection('conversations')
+              .doc(doc.id)
+              .collection('messages')
+              .orderBy('createdAt', descending: true)
+              .limit(1)
+              .get();
+
+          Message? lastMessage;
+          if (lastMsgSnapshot.docs.isNotEmpty) {
+            final Map<String, dynamic> msgData = lastMsgSnapshot.docs.first.data();
+            lastMessage = Message(
+              id: lastMsgSnapshot.docs.first.id,
+              title: '',
+              body: msgData['body'] as String? ?? '',
+              type: MessageType.direct,
+              senderName: msgData['senderName'] as String?,
+              createdAt: _parseTimestamp(msgData['createdAt']) ?? DateTime.now(),
+              isRead: msgData['isRead'] as bool? ?? false,
+            );
+          }
+
+          return Conversation(
+            id: doc.id,
+            participantIds: participantIds,
+            participantNames: participantNames,
+            lastMessage: lastMessage,
+            updatedAt: _parseTimestamp(data['updatedAt']) ?? DateTime.now(),
+            unreadCount: data['unreadCount'] as int? ?? 0,
+          );
+        }),
+      );
+
+      debugPrint('Loaded ${_messages.length} messages and ${_conversations.length} conversations');
     } catch (e) {
+      debugPrint('Error loading messages: $e');
       _error = 'Failed to load messages: $e';
+      _messages = <Message>[];
+      _conversations = <Conversation>[];
     } finally {
       _isLoading = false;
       notifyListeners();
     }
   }
 
-  MessageType _parseMessageType(String? type) {
-    switch (type) {
-      case 'system':
-        return MessageType.system;
-      case 'announcement':
-        return MessageType.announcement;
-      case 'alert':
-        return MessageType.alert;
-      case 'reminder':
-        return MessageType.reminder;
-      case 'direct':
-        return MessageType.direct;
-      default:
-        return MessageType.system;
-    }
-  }
-
-  MessagePriority _parseMessagePriority(String? priority) {
-    switch (priority) {
-      case 'low':
-        return MessagePriority.low;
-      case 'normal':
-        return MessagePriority.normal;
-      case 'high':
-        return MessagePriority.high;
-      case 'urgent':
-        return MessagePriority.urgent;
-      default:
-        return MessagePriority.normal;
-    }
-  }
-
   /// Mark a message as read in Firebase
   Future<bool> markAsRead(String messageId) async {
     try {
-      final DateTime now = DateTime.now();
       await _firestore.collection('messages').doc(messageId).update(<String, dynamic>{
         'isRead': true,
-        'readAt': Timestamp.fromDate(now),
+        'readAt': FieldValue.serverTimestamp(),
       });
 
       final int index = _messages.indexWhere((Message m) => m.id == messageId);
       if (index != -1) {
         _messages[index] = _messages[index].copyWith(
           isRead: true,
-          readAt: now,
+          readAt: DateTime.now(),
         );
         notifyListeners();
-        return true;
       }
-      return false;
+      return true;
     } catch (e) {
-      _error = 'Failed to mark message as read: $e';
+      debugPrint('Error marking message as read: $e');
+      _error = e.toString();
       notifyListeners();
       return false;
     }
@@ -178,17 +160,14 @@ class MessageService extends ChangeNotifier {
   /// Mark all messages as read in Firebase
   Future<void> markAllAsRead() async {
     try {
-      final DateTime now = DateTime.now();
       final WriteBatch batch = _firestore.batch();
+      final DateTime now = DateTime.now();
 
       for (final Message message in _messages.where((Message m) => !m.isRead)) {
-        batch.update(
-          _firestore.collection('messages').doc(message.id),
-          <String, dynamic>{
-            'isRead': true,
-            'readAt': Timestamp.fromDate(now),
-          },
-        );
+        batch.update(_firestore.collection('messages').doc(message.id), <String, dynamic>{
+          'isRead': true,
+          'readAt': FieldValue.serverTimestamp(),
+        });
       }
 
       await batch.commit();
@@ -199,12 +178,13 @@ class MessageService extends ChangeNotifier {
       )).toList();
       notifyListeners();
     } catch (e) {
-      _error = 'Failed to mark all as read: $e';
+      debugPrint('Error marking all messages as read: $e');
+      _error = e.toString();
       notifyListeners();
     }
   }
 
-  /// Delete a message in Firebase
+  /// Delete a message from Firebase
   Future<bool> deleteMessage(String messageId) async {
     try {
       await _firestore.collection('messages').doc(messageId).delete();
@@ -212,7 +192,8 @@ class MessageService extends ChangeNotifier {
       notifyListeners();
       return true;
     } catch (e) {
-      _error = 'Failed to delete message: $e';
+      debugPrint('Error deleting message: $e');
+      _error = e.toString();
       notifyListeners();
       return false;
     }
@@ -222,29 +203,95 @@ class MessageService extends ChangeNotifier {
   Future<bool> sendMessage({
     required String recipientId,
     required String body,
-    String? title,
+    String? conversationId,
   }) async {
     try {
-      final DocumentReference<Map<String, dynamic>> docRef = await _firestore.collection('messages').add(<String, dynamic>{
-        'senderId': userId,
-        'recipientId': recipientId,
-        'title': title ?? '',
-        'body': body,
-        'type': MessageType.direct.name,
-        'priority': MessagePriority.normal.name,
-        'createdAt': Timestamp.now(),
-        'isRead': false,
-      });
+      // Get sender info
+      final DocumentSnapshot<Map<String, dynamic>> senderDoc = await _firestore
+          .collection('users')
+          .doc(userId)
+          .get();
+      final String senderName = senderDoc.data()?['displayName'] as String? ?? 'Unknown';
 
-      // Track telemetry (no PII)
-      telemetryService?.trackMessageSent(
-        threadId: docRef.id,
-      );
+      if (conversationId != null) {
+        // Add to existing conversation
+        await _firestore
+            .collection('conversations')
+            .doc(conversationId)
+            .collection('messages')
+            .add(<String, dynamic>{
+          'body': body,
+          'senderId': userId,
+          'senderName': senderName,
+          'createdAt': FieldValue.serverTimestamp(),
+          'isRead': false,
+        });
+
+        await _firestore.collection('conversations').doc(conversationId).update(<String, dynamic>{
+          'updatedAt': FieldValue.serverTimestamp(),
+        });
+      } else {
+        // Create new conversation
+        final DocumentReference<Map<String, dynamic>> convRef = await _firestore
+            .collection('conversations')
+            .add(<String, dynamic>{
+          'participantIds': <String>[userId, recipientId],
+          'participantNames': <String>[senderName, recipientId], // Will need to lookup recipient name
+          'createdAt': FieldValue.serverTimestamp(),
+          'updatedAt': FieldValue.serverTimestamp(),
+        });
+
+        await convRef.collection('messages').add(<String, dynamic>{
+          'body': body,
+          'senderId': userId,
+          'senderName': senderName,
+          'createdAt': FieldValue.serverTimestamp(),
+          'isRead': false,
+        });
+      }
+
+      await loadMessages();
       return true;
     } catch (e) {
-      _error = 'Failed to send message: $e';
+      debugPrint('Error sending message: $e');
+      _error = e.toString();
       notifyListeners();
       return false;
     }
+  }
+
+  MessageType _parseMessageType(String? type) {
+    switch (type) {
+      case 'direct':
+        return MessageType.direct;
+      case 'announcement':
+        return MessageType.announcement;
+      case 'alert':
+        return MessageType.alert;
+      case 'reminder':
+        return MessageType.reminder;
+      default:
+        return MessageType.system;
+    }
+  }
+
+  MessagePriority _parseMessagePriority(String? priority) {
+    switch (priority) {
+      case 'urgent':
+        return MessagePriority.urgent;
+      case 'high':
+        return MessagePriority.high;
+      case 'low':
+        return MessagePriority.low;
+      default:
+        return MessagePriority.normal;
+    }
+  }
+
+  DateTime? _parseTimestamp(dynamic value) {
+    if (value == null) return null;
+    if (value is Timestamp) return value.toDate();
+    if (value is int) return DateTime.fromMillisecondsSinceEpoch(value);
+    return null;
   }
 }

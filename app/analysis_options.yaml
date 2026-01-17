@@ -9,16 +9,6 @@
 # packages, and plugins designed to encourage good coding practices.
 include: package:flutter_lints/flutter.yaml
 
-analyzer:
-  errors:
-    # Treat deprecated_member_use as info instead of warning
-    # The withOpacity deprecation affects 250+ lines - scheduled for batch migration
-    deprecated_member_use: ignore
-    # Ignore dangling library doc comments (cosmetic)
-    dangling_library_doc_comments: ignore
-    # BuildContext across async gaps - requires careful review
-    use_build_context_synchronously: ignore
-
 linter:
   # The lint rules applied to this project can be customized in the
   # section below to disable rules from the `package:flutter_lints/flutter.yaml`

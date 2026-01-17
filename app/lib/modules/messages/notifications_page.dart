@@ -59,7 +59,7 @@ class _NotificationsPageState extends State<NotificationsPage> {
     _Notification(
       id: '4',
       title: 'System Update',
-      body: "Scholesa has been updated with new features. Check out what's new!",
+      body: 'Scholesa has been updated with new features. Check out what\'s new!',
       type: _NotificationType.system,
       createdAt: DateTime.now().subtract(const Duration(days: 1)),
       isRead: true,
@@ -106,8 +106,8 @@ class _NotificationsPageState extends State<NotificationsPage> {
             style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
           ),
           const SizedBox(height: 8),
-          const Text(
-            "You're all caught up!",
+          Text(
+            'You\'re all caught up!',
             style: TextStyle(color: ScholesaColors.textSecondary),
           ),
         ],
@@ -183,14 +183,14 @@ class _NotificationsPageState extends State<NotificationsPage> {
                       const SizedBox(height: 4),
                       Text(
                         notification.body,
-                        style: const TextStyle(fontSize: 13, color: ScholesaColors.textSecondary),
+                        style: TextStyle(fontSize: 13, color: ScholesaColors.textSecondary),
                         maxLines: 2,
                         overflow: TextOverflow.ellipsis,
                       ),
                       const SizedBox(height: 8),
                       Text(
                         _formatTime(notification.createdAt),
-                        style: const TextStyle(fontSize: 11, color: ScholesaColors.textSecondary),
+                        style: TextStyle(fontSize: 11, color: ScholesaColors.textSecondary),
                       ),
                     ],
                   ),

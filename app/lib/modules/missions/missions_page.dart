@@ -363,7 +363,7 @@ class _MissionsPageState extends State<MissionsPage> with SingleTickerProviderSt
   }
 
   void _showMissionDetails(Mission mission) {
-    showModalBottomSheet<void>(
+    showModalBottomSheet(
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,

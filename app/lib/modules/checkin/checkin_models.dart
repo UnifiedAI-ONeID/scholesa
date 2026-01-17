@@ -69,7 +69,7 @@ class CheckRecord extends Equatable {
       siteId: json['siteId'] as String,
       timestamp: DateTime.parse(json['timestamp'] as String),
       status: CheckStatus.values.firstWhere(
-        (CheckStatus s) => s.name == json['status'],
+        (s) => s.name == json['status'],
         orElse: () => CheckStatus.checkedIn,
       ),
       authorizedById: json['authorizedById'] as String?,
@@ -240,7 +240,7 @@ class LearnerDaySummary extends Equatable {
     this.checkedOutAt,
     this.checkedInBy,
     this.checkedOutBy,
-    this.authorizedPickups = const <AuthorizedPickup>[],
+    this.authorizedPickups = const [],
   });
   final String learnerId;
   final String learnerName;

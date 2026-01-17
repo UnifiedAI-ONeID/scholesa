@@ -13,51 +13,48 @@ class AttendanceRecord extends Equatable {
 
   const AttendanceRecord({
     this.id,
-    required this.siteId,
+    this.siteId,
     required this.occurrenceId,
     required this.learnerId,
     required this.status,
-    this.note,
+    this.notes,
     required this.recordedAt,
-    required this.recordedBy,
+    this.recordedBy,
     this.isOffline = false,
   });
 
   factory AttendanceRecord.fromJson(Map<String, dynamic> json) => AttendanceRecord(
         id: json['id'] as String?,
-        siteId: json['siteId'] as String,
+        siteId: json['siteId'] as String?,
         occurrenceId: json['occurrenceId'] as String,
         learnerId: json['learnerId'] as String,
         status: AttendanceStatus.values.firstWhere(
           (AttendanceStatus s) => s.name == json['status'],
           orElse: () => AttendanceStatus.absent,
         ),
-        note: json['note'] as String?,
+        notes: json['notes'] as String? ?? json['note'] as String?,
         recordedAt: json['recordedAt'] != null
             ? DateTime.fromMillisecondsSinceEpoch(json['recordedAt'] as int)
             : DateTime.now(),
-        recordedBy: json['recordedBy'] as String,
+        recordedBy: json['recordedBy'] as String?,
       );
   final String? id;
-  final String siteId;
+  final String? siteId;
   final String occurrenceId;
   final String learnerId;
   final AttendanceStatus status;
-  final String? note;
+  final String? notes;
   final DateTime recordedAt;
-  final String recordedBy;
+  final String? recordedBy;
   final bool isOffline;
-
-  /// Alias for note (for API compatibility)
-  String? get notes => note;
 
   Map<String, dynamic> toJson() => <String, dynamic>{
         if (id != null) 'id': id,
-        'siteId': siteId,
+        if (siteId != null) 'siteId': siteId,
         'occurrenceId': occurrenceId,
         'learnerId': learnerId,
         'status': status.name,
-        'note': note,
+        'notes': notes,
         'recordedAtClient': recordedAt.millisecondsSinceEpoch,
         'recordedBy': recordedBy,
       };
@@ -68,7 +65,7 @@ class AttendanceRecord extends Equatable {
     String? occurrenceId,
     String? learnerId,
     AttendanceStatus? status,
-    String? note,
+    String? notes,
     DateTime? recordedAt,
     String? recordedBy,
     bool? isOffline,
@@ -79,7 +76,7 @@ class AttendanceRecord extends Equatable {
       occurrenceId: occurrenceId ?? this.occurrenceId,
       learnerId: learnerId ?? this.learnerId,
       status: status ?? this.status,
-      note: note ?? this.note,
+      notes: notes ?? this.notes,
       recordedAt: recordedAt ?? this.recordedAt,
       recordedBy: recordedBy ?? this.recordedBy,
       isOffline: isOffline ?? this.isOffline,
@@ -93,7 +90,7 @@ class AttendanceRecord extends Equatable {
         occurrenceId,
         learnerId,
         status,
-        note,
+        notes,
         recordedAt,
         recordedBy,
       ];
@@ -135,7 +132,7 @@ class SessionOccurrence extends Equatable {
     required this.siteId,
     required this.title,
     required this.startTime,
-    required this.endTime,
+    this.endTime,
     this.roomName,
     this.roster = const <RosterLearner>[],
     this.learnerCount,
@@ -147,10 +144,12 @@ class SessionOccurrence extends Equatable {
         siteId: json['siteId'] as String,
         title: json['title'] as String,
         startTime: DateTime.fromMillisecondsSinceEpoch(json['startTime'] as int),
-        endTime: DateTime.fromMillisecondsSinceEpoch(json['endTime'] as int),
+        endTime: json['endTime'] != null 
+            ? DateTime.fromMillisecondsSinceEpoch(json['endTime'] as int)
+            : null,
         roomName: json['roomName'] as String?,
         roster: (json['roster'] as List?)
-                ?.map((e) => RosterLearner.fromJson(e as Map<String, dynamic>))
+                ?.map((dynamic e) => RosterLearner.fromJson(e as Map<String, dynamic>))
                 .toList() ??
             <RosterLearner>[],
         learnerCount: json['learnerCount'] as int?,
@@ -160,15 +159,11 @@ class SessionOccurrence extends Equatable {
   final String siteId;
   final String title;
   final DateTime startTime;
-  final DateTime endTime;
+  final DateTime? endTime;
   final String? roomName;
   final List<RosterLearner> roster;
-  final int? learnerCount; // Can be set explicitly or derived from roster
+  final int? learnerCount;
 
-  /// Get the actual learner count (explicit or from roster)
-  int get effectiveLearnerCount => learnerCount ?? roster.length;
-
-  /// Create a copy with updated fields
   SessionOccurrence copyWith({
     String? id,
     String? sessionId,
@@ -194,5 +189,5 @@ class SessionOccurrence extends Equatable {
   }
 
   @override
-  List<Object?> get props => <Object?>[id, sessionId, siteId, title, startTime, endTime];
+  List<Object?> get props => <Object?>[id, sessionId, siteId, title, startTime, endTime, learnerCount];
 }

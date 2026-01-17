@@ -114,7 +114,7 @@ final Map<UserRole, List<DashboardCard>> _cardRegistry = <UserRole, List<Dashboa
       title: 'Review Queue',
       subtitle: 'Review student submissions',
       icon: Icons.rate_review_rounded,
-      route: '/educator/review-queue',
+      route: '/educator/missions/review',
       gradient: LinearGradient(
         colors: <Color>[Color(0xFFF59E0B), Color(0xFFFBBF24)],
         begin: Alignment.topLeft,
@@ -368,6 +368,66 @@ final Map<UserRole, List<DashboardCard>> _cardRegistry = <UserRole, List<Dashboa
         end: Alignment.bottomRight,
       ),
     ),
+    const DashboardCard(
+      id: 'hq_sites',
+      title: 'Site Management',
+      subtitle: 'All sites overview',
+      icon: Icons.business_rounded,
+      route: '/hq/sites',
+      gradient: LinearGradient(
+        colors: <Color>[Color(0xFF0EA5E9), Color(0xFF38BDF8)],
+        begin: Alignment.topLeft,
+        end: Alignment.bottomRight,
+      ),
+    ),
+    const DashboardCard(
+      id: 'hq_analytics',
+      title: 'Platform Analytics',
+      subtitle: 'Global metrics & insights',
+      icon: Icons.analytics_rounded,
+      route: '/hq/analytics',
+      gradient: LinearGradient(
+        colors: <Color>[Color(0xFF8B5CF6), Color(0xFFA78BFA)],
+        begin: Alignment.topLeft,
+        end: Alignment.bottomRight,
+      ),
+    ),
+    const DashboardCard(
+      id: 'hq_role_switcher',
+      title: 'Role Impersonation',
+      subtitle: 'Test other role views',
+      icon: Icons.swap_horizontal_circle_rounded,
+      route: '/hq/role-switcher',
+      gradient: LinearGradient(
+        colors: <Color>[Color(0xFFEC4899), Color(0xFFF472B6)],
+        begin: Alignment.topLeft,
+        end: Alignment.bottomRight,
+      ),
+    ),
+    const DashboardCard(
+      id: 'hq_curriculum',
+      title: 'Curriculum Builder',
+      subtitle: 'Pillars, skills, missions',
+      icon: Icons.school_rounded,
+      route: '/hq/curriculum',
+      gradient: LinearGradient(
+        colors: <Color>[Color(0xFF059669), Color(0xFF10B981)],
+        begin: Alignment.topLeft,
+        end: Alignment.bottomRight,
+      ),
+    ),
+    const DashboardCard(
+      id: 'hq_feature_flags',
+      title: 'Feature Flags',
+      subtitle: 'Toggle platform features',
+      icon: Icons.flag_rounded,
+      route: '/hq/feature-flags',
+      gradient: LinearGradient(
+        colors: <Color>[Color(0xFF6366F1), Color(0xFF818CF8)],
+        begin: Alignment.topLeft,
+        end: Alignment.bottomRight,
+      ),
+    ),
   ],
 };
 
@@ -411,8 +471,9 @@ class RoleDashboard extends StatelessWidget {
         final UserRole? role = appState.role;
         
         if (role == null) {
-          // Show pending approval screen for users without roles
-          return _buildPendingApprovalScreen(context, appState);
+          return const Scaffold(
+            body: Center(child: CircularProgressIndicator()),
+          );
         }
 
         final List<DashboardCard> cards = <DashboardCard>[...(_cardRegistry[role] ?? <DashboardCard>[]), ..._sharedCards];
@@ -514,22 +575,7 @@ class RoleDashboard extends StatelessWidget {
                   IconButton(
                     icon: const Icon(Icons.settings_outlined, color: Colors.white),
                     tooltip: 'Settings',
-                    onPressed: () {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(
-                          content: const Row(
-                            children: <Widget>[
-                              Icon(Icons.settings, color: Colors.white),
-                              SizedBox(width: 12),
-                              Text('Settings coming soon'),
-                            ],
-                          ),
-                          backgroundColor: roleColor,
-                          behavior: SnackBarBehavior.floating,
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                        ),
-                      );
-                    },
+                    onPressed: () => context.push('/settings'),
                   ),
                   IconButton(
                     icon: const Icon(Icons.logout, color: Colors.white),
@@ -703,7 +749,7 @@ class RoleDashboard extends StatelessWidget {
   }
 
   void _showSiteSwitcher(BuildContext context, AppState appState) {
-    showModalBottomSheet<void>(
+    showModalBottomSheet(
       context: context,
       backgroundColor: Colors.white,
       shape: const RoundedRectangleBorder(
@@ -755,166 +801,10 @@ class RoleDashboard extends StatelessWidget {
     );
   }
 
-  /// Build pending approval screen for users without assigned roles
-  Widget _buildPendingApprovalScreen(BuildContext context, AppState appState) {
-    return Scaffold(
-      backgroundColor: ScholesaColors.background,
-      body: SafeArea(
-        child: Center(
-          child: Padding(
-            padding: const EdgeInsets.all(24),
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: <Widget>[
-                Container(
-                  padding: const EdgeInsets.all(24),
-                  decoration: BoxDecoration(
-                    color: ScholesaColors.warning.withValues(alpha: 0.1),
-                    shape: BoxShape.circle,
-                  ),
-                  child: const Icon(
-                    Icons.hourglass_empty_rounded,
-                    size: 64,
-                    color: ScholesaColors.warning,
-                  ),
-                ),
-                const SizedBox(height: 32),
-                Text(
-                  'Account Pending Approval',
-                  style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                    fontWeight: FontWeight.bold,
-                    color: ScholesaColors.textPrimary,
-                  ),
-                  textAlign: TextAlign.center,
-                ),
-                const SizedBox(height: 16),
-                Text(
-                  'Your account has been created, but an administrator needs to assign your role and permissions.',
-                  style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                    color: ScholesaColors.textSecondary,
-                  ),
-                  textAlign: TextAlign.center,
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  'Please contact your school administrator or check back later.',
-                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                    color: ScholesaColors.textSecondary,
-                  ),
-                  textAlign: TextAlign.center,
-                ),
-                const SizedBox(height: 32),
-                Container(
-                  padding: const EdgeInsets.all(16),
-                  decoration: BoxDecoration(
-                    color: ScholesaColors.surface,
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: ScholesaColors.border),
-                  ),
-                  child: Column(
-                    children: <Widget>[
-                      Row(
-                        children: <Widget>[
-                          const Icon(Icons.email_outlined, 
-                            size: 20, 
-                            color: ScholesaColors.textSecondary),
-                          const SizedBox(width: 12),
-                          Expanded(
-                            child: Text(
-                              appState.email ?? 'No email',
-                              style: const TextStyle(
-                                color: ScholesaColors.textPrimary,
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 12),
-                      Row(
-                        children: <Widget>[
-                          const Icon(Icons.badge_outlined, 
-                            size: 20, 
-                            color: ScholesaColors.textSecondary),
-                          const SizedBox(width: 12),
-                          const Text(
-                            'Status: ',
-                            style: TextStyle(
-                              color: ScholesaColors.textSecondary,
-                            ),
-                          ),
-                          Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 8, 
-                              vertical: 2,
-                            ),
-                            decoration: BoxDecoration(
-                              color: ScholesaColors.warning.withValues(alpha: 0.2),
-                              borderRadius: BorderRadius.circular(12),
-                            ),
-                            child: const Text(
-                              'Pending',
-                              style: TextStyle(
-                                color: ScholesaColors.warning,
-                                fontWeight: FontWeight.w600,
-                                fontSize: 12,
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ],
-                  ),
-                ),
-                const SizedBox(height: 32),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: <Widget>[
-                    OutlinedButton.icon(
-                      onPressed: () {
-                        // Refresh to check if role has been assigned
-                        context.go('/');
-                      },
-                      icon: const Icon(Icons.refresh),
-                      label: const Text('Refresh'),
-                      style: OutlinedButton.styleFrom(
-                        foregroundColor: ScholesaColors.primary,
-                        side: const BorderSide(color: ScholesaColors.primary),
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 24, 
-                          vertical: 12,
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 16),
-                    ElevatedButton.icon(
-                      onPressed: () {
-                        context.go('/login');
-                      },
-                      icon: const Icon(Icons.logout),
-                      label: const Text('Sign Out'),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: ScholesaColors.error,
-                        foregroundColor: Colors.white,
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 24, 
-                          vertical: 12,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-
   void _showLogoutDialog(BuildContext context) {
-    showDialog<void>(
+    showDialog(
       context: context,
-      builder: (BuildContext context) => AlertDialog(
+      builder: (BuildContext dialogContext) => AlertDialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
         title: const Row(
           children: <Widget>[
@@ -926,13 +816,18 @@ class RoleDashboard extends StatelessWidget {
         content: const Text('Are you sure you want to sign out?'),
         actions: <Widget>[
           TextButton(
-            onPressed: () => Navigator.pop(context),
+            onPressed: () => Navigator.pop(dialogContext),
             child: const Text('Cancel'),
           ),
           ElevatedButton(
-            onPressed: () {
-              Navigator.pop(context);
-              context.go('/login');
+            onPressed: () async {
+              Navigator.pop(dialogContext);
+              // Clear app state and go to login
+              final AppState appState = context.read<AppState>();
+              appState.clear();
+              if (context.mounted) {
+                context.go('/welcome');
+              }
             },
             style: ElevatedButton.styleFrom(
               backgroundColor: ScholesaColors.error,

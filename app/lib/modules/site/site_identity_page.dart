@@ -12,7 +12,7 @@ class SiteIdentityPage extends StatefulWidget {
 
 class _SiteIdentityPageState extends State<SiteIdentityPage> {
   final List<_IdentityMatch> _pendingMatches = <_IdentityMatch>[
-    const _IdentityMatch(
+    _IdentityMatch(
       id: '1',
       localName: 'Oliver Thompson',
       externalName: 'O. Thompson',
@@ -20,7 +20,7 @@ class _SiteIdentityPageState extends State<SiteIdentityPage> {
       confidence: 0.92,
       status: _MatchStatus.pending,
     ),
-    const _IdentityMatch(
+    _IdentityMatch(
       id: '2',
       localName: 'Emma Smith',
       externalName: 'Emma S.',
@@ -28,7 +28,7 @@ class _SiteIdentityPageState extends State<SiteIdentityPage> {
       confidence: 0.85,
       status: _MatchStatus.pending,
     ),
-    const _IdentityMatch(
+    _IdentityMatch(
       id: '3',
       localName: 'Liam Martinez',
       externalName: 'liamm_student',
@@ -54,7 +54,7 @@ class _SiteIdentityPageState extends State<SiteIdentityPage> {
               children: <Widget>[
                 _buildHeader(),
                 const SizedBox(height: 16),
-                ..._pendingMatches.map((_IdentityMatch match) => _buildMatchCard(match)),
+                ..._pendingMatches.map((match) => _buildMatchCard(match)),
               ],
             ),
     );
@@ -68,10 +68,10 @@ class _SiteIdentityPageState extends State<SiteIdentityPage> {
         borderRadius: BorderRadius.circular(12),
         border: Border.all(color: const Color(0xFF64748B).withValues(alpha: 0.3)),
       ),
-      child: const Row(
+      child: Row(
         children: <Widget>[
-          Icon(Icons.info_outline_rounded, color: Color(0xFF64748B)),
-          SizedBox(width: 12),
+          const Icon(Icons.info_outline_rounded, color: Color(0xFF64748B)),
+          const SizedBox(width: 12),
           Expanded(
             child: Text(
               'Review and confirm matches between local accounts and external provider accounts.',
@@ -113,7 +113,7 @@ class _SiteIdentityPageState extends State<SiteIdentityPage> {
             ),
           ),
           const SizedBox(height: 8),
-          const Text(
+          Text(
             'No pending identity matches to review',
             style: TextStyle(
               fontSize: 14,
@@ -145,7 +145,7 @@ class _SiteIdentityPageState extends State<SiteIdentityPage> {
                     children: <Widget>[
                       Text(
                         match.provider,
-                        style: const TextStyle(
+                        style: TextStyle(
                           fontSize: 12,
                           fontWeight: FontWeight.w500,
                           color: ScholesaColors.textSecondary,
@@ -246,7 +246,7 @@ class _SiteIdentityPageState extends State<SiteIdentityPage> {
       children: <Widget>[
         Text(
           label,
-          style: const TextStyle(
+          style: TextStyle(
             fontSize: 11,
             color: ScholesaColors.textSecondary,
           ),
@@ -323,7 +323,6 @@ class _SiteIdentityPageState extends State<SiteIdentityPage> {
   }
 }
 
-// ignore: unused_field - approved/rejected used when implementing approval workflow
 enum _MatchStatus { pending, approved, rejected }
 
 class _IdentityMatch {

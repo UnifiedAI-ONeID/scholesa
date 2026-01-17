@@ -78,7 +78,7 @@ class SiteBillingPage extends StatelessWidget {
           ),
           const SizedBox(height: 8),
           Text(
-            r'$299/month',
+            '\$299/month',
             style: TextStyle(
               fontSize: 16,
               color: Colors.white.withValues(alpha: 0.9),
@@ -175,7 +175,7 @@ class SiteBillingPage extends StatelessWidget {
             ),
             Text(
               '${used.toStringAsFixed(unit.isNotEmpty ? 1 : 0)}$unit / ${total.toStringAsFixed(0)}$unit',
-              style: const TextStyle(
+              style: TextStyle(
                 fontSize: 13,
                 color: ScholesaColors.textSecondary,
               ),
@@ -225,11 +225,11 @@ class SiteBillingPage extends StatelessWidget {
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
           child: Column(
             children: <Widget>[
-              _buildInvoiceRow('INV-2026-001', 'Jan 1, 2026', r'$299.00', true),
+              _buildInvoiceRow('INV-2026-001', 'Jan 1, 2026', '\$299.00', true),
               const Divider(height: 1),
-              _buildInvoiceRow('INV-2025-012', 'Dec 1, 2025', r'$299.00', true),
+              _buildInvoiceRow('INV-2025-012', 'Dec 1, 2025', '\$299.00', true),
               const Divider(height: 1),
-              _buildInvoiceRow('INV-2025-011', 'Nov 1, 2025', r'$299.00', true),
+              _buildInvoiceRow('INV-2025-011', 'Nov 1, 2025', '\$299.00', true),
             ],
           ),
         ),

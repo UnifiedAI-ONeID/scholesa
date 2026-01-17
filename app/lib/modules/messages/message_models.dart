@@ -87,11 +87,11 @@ class Message extends Equatable {
       title: json['title'] as String,
       body: json['body'] as String,
       type: MessageType.values.firstWhere(
-        (MessageType t) => t.name == json['type'],
+        (t) => t.name == json['type'],
         orElse: () => MessageType.system,
       ),
       priority: MessagePriority.values.firstWhere(
-        (MessagePriority p) => p.name == json['priority'],
+        (p) => p.name == json['priority'],
         orElse: () => MessagePriority.normal,
       ),
       senderId: json['senderId'] as String?,

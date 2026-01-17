@@ -250,7 +250,7 @@ class _EducatorLearnersPageState extends State<EducatorLearnersPage> {
   }
 
   void _openLearnerDetail(EducatorLearner learner) {
-    showModalBottomSheet<void>(
+    showModalBottomSheet(
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,

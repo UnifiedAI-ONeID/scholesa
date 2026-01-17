@@ -130,11 +130,11 @@ class Habit extends Equatable { // 1-7 for Mon-Sun
       description: json['description'] as String?,
       emoji: json['emoji'] as String,
       category: HabitCategory.values.firstWhere(
-        (HabitCategory c) => c.name == json['category'],
+        (c) => c.name == json['category'],
         orElse: () => HabitCategory.learning,
       ),
       frequency: HabitFrequency.values.firstWhere(
-        (HabitFrequency f) => f.name == json['frequency'],
+        (f) => f.name == json['frequency'],
         orElse: () => HabitFrequency.daily,
       ),
       preferredTime: HabitTimePreference.values.firstWhere(

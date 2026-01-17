@@ -1,11 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-
 import '../../auth/app_state.dart' show UserRole, UserRoleExtension;
 import '../../ui/theme/scholesa_theme.dart';
 import '../../ui/widgets/cards.dart';
-import 'user_admin_service.dart';
 import 'user_models.dart';
+import 'user_admin_service.dart';
 
 /// HQ User Administration Page
 /// Beautiful colorful UI for managing all platform users
@@ -401,7 +400,7 @@ class _UserAdminPageState extends State<UserAdminPage> with SingleTickerProvider
   }
 
   void _showUserDetails(UserModel user) {
-    showModalBottomSheet<void>(
+    showModalBottomSheet(
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
@@ -410,7 +409,7 @@ class _UserAdminPageState extends State<UserAdminPage> with SingleTickerProvider
   }
 
   void _showCreateUserDialog() {
-    showDialog<void>(
+    showDialog(
       context: context,
       builder: (BuildContext context) => const _CreateUserDialog(),
     );
@@ -1148,7 +1147,7 @@ class _UserDetailsSheet extends StatelessWidget {
   }
 
   void _showRoleChangeDialog(BuildContext context) {
-    showDialog<void>(
+    showDialog(
       context: context,
       builder: (BuildContext ctx) => AlertDialog(
         title: const Text('Change Role'),
@@ -1332,17 +1331,14 @@ class _CreateUserDialogState extends State<_CreateUserDialog> {
   final GlobalKey<FormState> _formKey = GlobalKey<FormState>();
   final TextEditingController _emailController = TextEditingController();
   final TextEditingController _nameController = TextEditingController();
-  final TextEditingController _passwordController = TextEditingController();
   UserRole _selectedRole = UserRole.learner;
   final List<String> _selectedSites = <String>[];
   bool _isLoading = false;
-  bool _obscurePassword = true;
 
   @override
   void dispose() {
     _emailController.dispose();
     _nameController.dispose();
-    _passwordController.dispose();
     super.dispose();
   }
 
@@ -1370,98 +1366,78 @@ class _CreateUserDialogState extends State<_CreateUserDialog> {
         width: 400,
         child: Form(
           key: _formKey,
-          child: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: <Widget>[
-                TextFormField(
-                  controller: _emailController,
-                  decoration: InputDecoration(
-                    labelText: 'Email',
-                    prefixIcon: const Icon(Icons.email),
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
-                    ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: <Widget>[
+              TextFormField(
+                controller: _emailController,
+                decoration: InputDecoration(
+                  labelText: 'Email',
+                  prefixIcon: const Icon(Icons.email),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
                   ),
-                  validator: (String? v) => v?.contains('@') ?? false ? null : 'Invalid email',
                 ),
-                const SizedBox(height: 16),
-                TextFormField(
-                  controller: _nameController,
-                  decoration: InputDecoration(
-                    labelText: 'Display Name',
-                    prefixIcon: const Icon(Icons.person),
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
-                    ),
+                validator: (String? v) => v?.contains('@') ?? false ? null : 'Invalid email',
+              ),
+              const SizedBox(height: 16),
+              TextFormField(
+                controller: _nameController,
+                decoration: InputDecoration(
+                  labelText: 'Display Name',
+                  prefixIcon: const Icon(Icons.person),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
                   ),
-                  validator: (String? v) => v?.isNotEmpty ?? false ? null : 'Required',
                 ),
-                const SizedBox(height: 16),
-                TextFormField(
-                  controller: _passwordController,
-                  obscureText: _obscurePassword,
-                  decoration: InputDecoration(
-                    labelText: 'Password',
-                    prefixIcon: const Icon(Icons.lock),
-                    suffixIcon: IconButton(
-                      icon: Icon(_obscurePassword ? Icons.visibility : Icons.visibility_off),
-                      onPressed: () => setState(() => _obscurePassword = !_obscurePassword),
+                validator: (String? v) => v?.isNotEmpty ?? false ? null : 'Required',
+              ),
+              const SizedBox(height: 16),
+              Text('Role', style: TextStyle(color: Colors.grey[700], fontWeight: FontWeight.w500)),
+              const SizedBox(height: 8),
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: UserRole.values.map((UserRole role) {
+                  final Color color = _getRoleColor(role);
+                  final bool isSelected = _selectedRole == role;
+                  return ChoiceChip(
+                    label: Text(role.label),
+                    selected: isSelected,
+                    onSelected: (_) => setState(() => _selectedRole = role),
+                    selectedColor: color.withOpacity(0.2),
+                    labelStyle: TextStyle(
+                      color: isSelected ? color : Colors.grey[700],
+                      fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
                     ),
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    helperText: 'Min 8 characters',
-                  ),
-                  validator: (String? v) => (v?.length ?? 0) >= 8 ? null : 'Min 8 characters',
-                ),
-                const SizedBox(height: 16),
-                Text('Role', style: TextStyle(color: Colors.grey[700], fontWeight: FontWeight.w500)),
-                const SizedBox(height: 8),
-                Wrap(
-                  spacing: 8,
-                  runSpacing: 8,
-                  children: UserRole.values.map((UserRole role) {
-                    final Color color = _getRoleColor(role);
-                    final bool isSelected = _selectedRole == role;
-                    return ChoiceChip(
-                      label: Text(role.label),
-                      selected: isSelected,
-                      onSelected: (_) => setState(() => _selectedRole = role),
-                      selectedColor: color.withOpacity(0.2),
-                      labelStyle: TextStyle(
-                        color: isSelected ? color : Colors.grey[700],
-                        fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
-                      ),
-                    );
-                  }).toList(),
-                ),
-                const SizedBox(height: 16),
-                Text('Sites', style: TextStyle(color: Colors.grey[700], fontWeight: FontWeight.w500)),
-                const SizedBox(height: 8),
-                Wrap(
-                  spacing: 8,
-                  runSpacing: 8,
-                  children: service.sites.map((SiteModel site) {
-                    final bool isSelected = _selectedSites.contains(site.id);
-                    return FilterChip(
-                      label: Text(site.name),
-                      selected: isSelected,
-                      onSelected: (bool selected) {
-                        setState(() {
-                          if (selected) {
-                            _selectedSites.add(site.id);
-                          } else {
-                            _selectedSites.remove(site.id);
-                          }
-                        });
-                      },
-                    );
-                  }).toList(),
-                ),
-              ],
-            ),
+                  );
+                }).toList(),
+              ),
+              const SizedBox(height: 16),
+              Text('Sites', style: TextStyle(color: Colors.grey[700], fontWeight: FontWeight.w500)),
+              const SizedBox(height: 8),
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: service.sites.map((SiteModel site) {
+                  final bool isSelected = _selectedSites.contains(site.id);
+                  return FilterChip(
+                    label: Text(site.name),
+                    selected: isSelected,
+                    onSelected: (bool selected) {
+                      setState(() {
+                        if (selected) {
+                          _selectedSites.add(site.id);
+                        } else {
+                          _selectedSites.remove(site.id);
+                        }
+                      });
+                    },
+                  );
+                }).toList(),
+              ),
+            ],
           ),
         ),
       ),
@@ -1510,49 +1486,23 @@ class _CreateUserDialogState extends State<_CreateUserDialog> {
     setState(() => _isLoading = true);
 
     final UserAdminService service = context.read<UserAdminService>();
-    
-    try {
-      // Call Cloud Function to create user with password
-      final UserModel? newUser = await service.createUserWithPassword(
-        email: _emailController.text.trim(),
-        password: _passwordController.text,
-        displayName: _nameController.text.trim(),
-        role: _selectedRole,
-        siteIds: _selectedSites,
-      );
+    final UserModel? result = await service.createUser(
+      email: _emailController.text,
+      displayName: _nameController.text,
+      role: _selectedRole,
+      siteIds: _selectedSites,
+    );
 
-      if (mounted) {
-        setState(() => _isLoading = false);
-        
-        if (newUser != null) {
-          Navigator.pop(context);
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text('User ${newUser.displayName} created successfully'),
-              backgroundColor: ScholesaColors.success,
-            ),
-          );
-          // Refresh the user list
-          service.loadUsers();
-        } else {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text(service.error ?? 'Failed to create user'),
-              backgroundColor: ScholesaColors.error,
-            ),
-          );
-        }
-      }
-    } catch (e) {
-      if (mounted) {
-        setState(() => _isLoading = false);
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Error: $e'),
-            backgroundColor: ScholesaColors.error,
-          ),
-        );
-      }
+    setState(() => _isLoading = false);
+
+    if (result != null && mounted) {
+      Navigator.pop(context);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('User ${result.displayName} created'),
+          backgroundColor: ScholesaColors.success,
+        ),
+      );
     }
   }
 }

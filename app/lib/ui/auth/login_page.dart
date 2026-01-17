@@ -1,9 +1,7 @@
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 import '../../auth/auth_service.dart';
-import '../../services/telemetry_service.dart';
 import '../theme/scholesa_theme.dart';
 
 class LoginPage extends StatefulWidget {
@@ -60,15 +58,15 @@ class _LoginPageState extends State<LoginPage> with SingleTickerProviderStateMix
         password: _passwordController.text,
       );
       
-      // Track successful login
       if (mounted) {
-        context.read<TelemetryService>().trackLogin(method: 'email');
         context.go('/');
       }
     } catch (e) {
-      setState(() {
-        _errorMessage = e.toString().replaceAll('Exception: ', '');
-      });
+      if (mounted) {
+        setState(() {
+          _errorMessage = e.toString().replaceAll('Exception: ', '');
+        });
+      }
     } finally {
       if (mounted) {
         setState(() {
@@ -78,65 +76,60 @@ class _LoginPageState extends State<LoginPage> with SingleTickerProviderStateMix
     }
   }
 
-  Future<void> _showForgotPasswordDialog() async {
-    final TextEditingController resetEmailController = TextEditingController();
-    
-    await showDialog<void>(
-      context: context,
-      builder: (BuildContext context) {
-        return AlertDialog(
-          title: const Text('Reset Password'),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: <Widget>[
-              const Text('Enter your email address to receive a password reset link.'),
-              const SizedBox(height: 16),
-              TextField(
-                controller: resetEmailController,
-                decoration: const InputDecoration(
-                  labelText: 'Email',
-                  hintText: 'Enter your email',
-                ),
-                keyboardType: TextInputType.emailAddress,
-              ),
-            ],
-          ),
-          actions: <Widget>[
-            TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: const Text('Cancel'),
-            ),
-            ElevatedButton(
-              onPressed: () async {
-                final String email = resetEmailController.text.trim();
-                if (email.isEmpty) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Please enter your email')),
-                  );
-                  return;
-                }
-                try {
-                  await FirebaseAuth.instance.sendPasswordResetEmail(email: email);
-                  if (context.mounted) {
-                    Navigator.pop(context);
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('Password reset email sent')),
-                    );
-                  }
-                } catch (e) {
-                  if (context.mounted) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(content: Text('Error: $e')),
-                    );
-                  }
-                }
-              },
-              child: const Text('Send Reset Link'),
-            ),
-          ],
-        );
-      },
-    );
+  Future<void> _handleGoogleSignIn() async {
+    setState(() {
+      _isLoading = true;
+      _errorMessage = null;
+    });
+
+    try {
+      final AuthService authService = context.read<AuthService>();
+      await authService.signInWithGoogle();
+      
+      if (mounted) {
+        context.go('/');
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _errorMessage = e.toString().replaceAll('Exception: ', '');
+        });
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
+    }
+  }
+
+  Future<void> _handleMicrosoftSignIn() async {
+    setState(() {
+      _isLoading = true;
+      _errorMessage = null;
+    });
+
+    try {
+      final AuthService authService = context.read<AuthService>();
+      await authService.signInWithMicrosoft();
+      
+      if (mounted) {
+        context.go('/');
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _errorMessage = e.toString().replaceAll('Exception: ', '');
+        });
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
+    }
   }
 
   @override
@@ -421,7 +414,7 @@ class _LoginPageState extends State<LoginPage> with SingleTickerProviderStateMix
                                   alignment: Alignment.centerRight,
                                   child: TextButton(
                                     onPressed: () {
-                                      _showForgotPasswordDialog();
+                                      // TODO: Navigate to forgot password
                                     },
                                     child: const Text('Forgot password?'),
                                   ),
@@ -493,11 +486,7 @@ class _LoginPageState extends State<LoginPage> with SingleTickerProviderStateMix
                             children: <Widget>[
                               Expanded(
                                 child: OutlinedButton.icon(
-                                  onPressed: () {
-                                    ScaffoldMessenger.of(context).showSnackBar(
-                                      const SnackBar(content: Text('Google sign-in will be available soon')),
-                                    );
-                                  },
+                                  onPressed: _isLoading ? null : _handleGoogleSignIn,
                                   icon: const Icon(
                                     Icons.g_mobiledata,
                                     color: Colors.red,
@@ -516,11 +505,7 @@ class _LoginPageState extends State<LoginPage> with SingleTickerProviderStateMix
                               const SizedBox(width: 16),
                               Expanded(
                                 child: OutlinedButton.icon(
-                                  onPressed: () {
-                                    ScaffoldMessenger.of(context).showSnackBar(
-                                      const SnackBar(content: Text('Microsoft sign-in will be available soon')),
-                                    );
-                                  },
+                                  onPressed: _isLoading ? null : _handleMicrosoftSignIn,
                                   icon: const Icon(
                                     Icons.window,
                                     size: 20,

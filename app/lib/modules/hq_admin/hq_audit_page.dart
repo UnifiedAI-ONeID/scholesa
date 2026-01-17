@@ -1,12 +1,8 @@
 import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
-import '../../services/audit_log_service.dart';
-import '../../services/telemetry_service.dart';
 import '../../ui/theme/scholesa_theme.dart';
 
 /// HQ Audit page for viewing audit logs and compliance reports
 /// Based on docs/43_EXPORT_RETENTION_BACKUP_SPEC.md
-/// Wired to AuditLogService for live Firestore data
 class HqAuditPage extends StatefulWidget {
   const HqAuditPage({super.key});
 
@@ -14,38 +10,73 @@ class HqAuditPage extends StatefulWidget {
   State<HqAuditPage> createState() => _HqAuditPageState();
 }
 
-class _HqAuditPageState extends State<HqAuditPage> with SingleTickerProviderStateMixin {
-  late TabController _tabController;
-  String? _filterAction;
+enum _AuditCategory { auth, data, admin, system }
 
-  @override
-  void initState() {
-    super.initState();
-    _tabController = TabController(length: 3, vsync: this);
-    // Load audit logs on init
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      final AuditLogService service = context.read<AuditLogService>();
-      service.loadAuditLogs();
-      service.loadExportRequests();
-      service.loadDeletionRequests();
-      
-      // Track audit log view
-      context.read<TelemetryService>().trackAuditLogViewed();
-    });
-  }
+class _AuditLog {
+  const _AuditLog({
+    required this.id,
+    required this.action,
+    required this.category,
+    required this.actor,
+    required this.timestamp,
+    required this.details,
+    this.ipAddress,
+  });
 
-  @override
-  void dispose() {
-    _tabController.dispose();
-    super.dispose();
-  }
+  final String id;
+  final String action;
+  final _AuditCategory category;
+  final String actor;
+  final DateTime timestamp;
+  final String details;
+  final String? ipAddress;
+}
+
+class _HqAuditPageState extends State<HqAuditPage> {
+  final List<_AuditLog> _auditLogs = <_AuditLog>[
+    _AuditLog(
+      id: '1',
+      action: 'User Login',
+      category: _AuditCategory.auth,
+      actor: 'admin@scholesa.io',
+      timestamp: DateTime.now().subtract(const Duration(minutes: 5)),
+      details: 'Successful login from web client',
+      ipAddress: '192.168.1.100',
+    ),
+    _AuditLog(
+      id: '2',
+      action: 'Role Changed',
+      category: _AuditCategory.admin,
+      actor: 'admin@scholesa.io',
+      timestamp: DateTime.now().subtract(const Duration(hours: 1)),
+      details: 'Changed user jane@school.edu role from educator to site_lead',
+    ),
+    _AuditLog(
+      id: '3',
+      action: 'Data Export',
+      category: _AuditCategory.data,
+      actor: 'reports@scholesa.io',
+      timestamp: DateTime.now().subtract(const Duration(hours: 3)),
+      details: 'Exported learner progress report for Site: Downtown',
+    ),
+    _AuditLog(
+      id: '4',
+      action: 'Config Update',
+      category: _AuditCategory.system,
+      actor: 'system',
+      timestamp: DateTime.now().subtract(const Duration(days: 1)),
+      details: 'Feature flag "new_dashboard" enabled globally',
+    ),
+  ];
+
+  _AuditCategory? _filterCategory;
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: ScholesaColors.background,
       appBar: AppBar(
-        title: const Text('Audit & Compliance'),
+        title: const Text('Audit Logs'),
         backgroundColor: ScholesaColors.hqGradient.colors.first,
         foregroundColor: Colors.white,
         actions: <Widget>[
@@ -54,107 +85,34 @@ class _HqAuditPageState extends State<HqAuditPage> with SingleTickerProviderStat
             onPressed: () => _showFilterDialog(),
           ),
           IconButton(
-            icon: const Icon(Icons.refresh_rounded),
+            icon: const Icon(Icons.download_rounded),
             onPressed: () {
-              final AuditLogService service = context.read<AuditLogService>();
-              service.loadAuditLogs();
-              service.loadExportRequests();
-              service.loadDeletionRequests();
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(content: Text('Exporting audit logs...')),
+              );
             },
           ),
         ],
-        bottom: TabBar(
-          controller: _tabController,
-          indicatorColor: Colors.white,
-          labelColor: Colors.white,
-          unselectedLabelColor: Colors.white70,
-          tabs: const <Widget>[
-            Tab(text: 'Audit Logs'),
-            Tab(text: 'Exports'),
-            Tab(text: 'Deletions'),
-          ],
-        ),
       ),
-      body: Consumer<AuditLogService>(
-        builder: (BuildContext context, AuditLogService service, _) {
-          if (service.isLoading) {
-            return const Center(child: CircularProgressIndicator());
-          }
-
-          if (service.error != null) {
-            return Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: <Widget>[
-                  Icon(Icons.error_outline_rounded, size: 48, color: Colors.red.withValues(alpha: 0.7)),
-                  const SizedBox(height: 16),
-                  Text(service.error!, style: const TextStyle(color: ScholesaColors.textSecondary)),
-                  const SizedBox(height: 16),
-                  ElevatedButton.icon(
-                    onPressed: () => service.loadAuditLogs(),
-                    icon: const Icon(Icons.refresh),
-                    label: const Text('Retry'),
-                  ),
-                ],
-              ),
-            );
-          }
-
-          return TabBarView(
-            controller: _tabController,
-            children: <Widget>[
-              _buildAuditLogList(service),
-              _buildExportRequestList(service),
-              _buildDeletionRequestList(service),
-            ],
-          );
-        },
+      body: Column(
+        children: <Widget>[
+          _buildSummaryHeader(),
+          Expanded(child: _buildAuditList()),
+        ],
       ),
     );
   }
 
-  Widget _buildAuditLogList(AuditLogService service) {
-    final List<AuditLogEntry> logs = _filterAction != null
-        ? service.logs.where((AuditLogEntry l) => l.action.contains(_filterAction!)).toList()
-        : service.logs;
-
-    if (logs.isEmpty) {
-      return const Center(
-        child: Text('No audit logs found', style: TextStyle(color: ScholesaColors.textSecondary)),
-      );
-    }
-
-    return Column(
-      children: <Widget>[
-        _buildSummaryHeader(service),
-        Expanded(
-          child: RefreshIndicator(
-            onRefresh: () => service.loadAuditLogs(),
-            child: ListView.builder(
-              padding: const EdgeInsets.all(16),
-              itemCount: logs.length,
-              itemBuilder: (BuildContext context, int index) => _buildAuditCard(logs[index]),
-            ),
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildSummaryHeader(AuditLogService service) {
-    final int authCount = service.logs.where((AuditLogEntry l) => l.action.startsWith('auth.')).length;
-    final int dataCount = service.logs.where((AuditLogEntry l) => l.action.startsWith('data.')).length;
-    final int adminCount = service.logs.where((AuditLogEntry l) => l.action.contains('admin') || l.action.contains('user')).length;
-
+  Widget _buildSummaryHeader() {
     return Container(
       padding: const EdgeInsets.all(16),
       color: ScholesaColors.surface,
       child: Row(
         children: <Widget>[
-          Expanded(child: _buildSummaryStat('Total', service.logs.length.toString(), Colors.blue)),
-          Expanded(child: _buildSummaryStat('Auth', authCount.toString(), Colors.green)),
-          Expanded(child: _buildSummaryStat('Data', dataCount.toString(), Colors.orange)),
-          Expanded(child: _buildSummaryStat('Admin', adminCount.toString(), Colors.purple)),
+          Expanded(child: _buildSummaryStat('Total', _auditLogs.length.toString(), Colors.blue)),
+          Expanded(child: _buildSummaryStat('Auth', _auditLogs.where((_AuditLog l) => l.category == _AuditCategory.auth).length.toString(), Colors.green)),
+          Expanded(child: _buildSummaryStat('Admin', _auditLogs.where((_AuditLog l) => l.category == _AuditCategory.admin).length.toString(), Colors.orange)),
+          Expanded(child: _buildSummaryStat('System', _auditLogs.where((_AuditLog l) => l.category == _AuditCategory.system).length.toString(), Colors.purple)),
         ],
       ),
     );
@@ -164,28 +122,39 @@ class _HqAuditPageState extends State<HqAuditPage> with SingleTickerProviderStat
     return Column(
       children: <Widget>[
         Text(value, style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: color)),
-        Text(label, style: const TextStyle(fontSize: 11, color: ScholesaColors.textSecondary)),
+        Text(label, style: TextStyle(fontSize: 11, color: ScholesaColors.textSecondary)),
       ],
     );
   }
 
-  Widget _buildAuditCard(AuditLogEntry log) {
+  Widget _buildAuditList() {
+    final List<_AuditLog> filtered = _filterCategory == null
+        ? _auditLogs
+        : _auditLogs.where((_AuditLog l) => l.category == _filterCategory).toList();
+
+    return ListView.builder(
+      padding: const EdgeInsets.all(16),
+      itemCount: filtered.length,
+      itemBuilder: (BuildContext context, int index) => _buildAuditCard(filtered[index]),
+    );
+  }
+
+  Widget _buildAuditCard(_AuditLog log) {
     return Card(
       margin: const EdgeInsets.only(bottom: 8),
       color: ScholesaColors.surface,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       child: ListTile(
-        leading: _buildActionIcon(log.action),
+        leading: _buildCategoryIcon(log.category),
         title: Text(log.action, style: const TextStyle(fontWeight: FontWeight.w600)),
         subtitle: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: <Widget>[
-            if (log.targetType != null)
-              Text('${log.targetType}: ${log.targetId ?? 'N/A'}', style: const TextStyle(fontSize: 12, color: ScholesaColors.textSecondary)),
+            Text(log.details, style: TextStyle(fontSize: 12, color: ScholesaColors.textSecondary)),
             const SizedBox(height: 4),
             Text(
-              '${log.userId ?? 'System'} • ${_formatTime(log.timestamp)}',
-              style: const TextStyle(fontSize: 11, color: ScholesaColors.textSecondary),
+              '${log.actor} • ${_formatTime(log.timestamp)}',
+              style: TextStyle(fontSize: 11, color: ScholesaColors.textSecondary),
             ),
           ],
         ),
@@ -195,22 +164,22 @@ class _HqAuditPageState extends State<HqAuditPage> with SingleTickerProviderStat
     );
   }
 
-  Widget _buildActionIcon(String action) {
+  Widget _buildCategoryIcon(_AuditCategory category) {
     IconData icon;
     Color color;
-
-    if (action.startsWith('auth.')) {
-      icon = Icons.login_rounded;
-      color = Colors.green;
-    } else if (action.contains('export') || action.contains('data')) {
-      icon = Icons.storage_rounded;
-      color = Colors.blue;
-    } else if (action.contains('admin') || action.contains('user') || action.contains('role')) {
-      icon = Icons.admin_panel_settings_rounded;
-      color = Colors.orange;
-    } else {
-      icon = Icons.settings_rounded;
-      color = Colors.purple;
+    switch (category) {
+      case _AuditCategory.auth:
+        icon = Icons.login_rounded;
+        color = Colors.green;
+      case _AuditCategory.data:
+        icon = Icons.storage_rounded;
+        color = Colors.blue;
+      case _AuditCategory.admin:
+        icon = Icons.admin_panel_settings_rounded;
+        color = Colors.orange;
+      case _AuditCategory.system:
+        icon = Icons.settings_rounded;
+        color = Colors.purple;
     }
 
     return Container(
@@ -223,232 +192,45 @@ class _HqAuditPageState extends State<HqAuditPage> with SingleTickerProviderStat
     );
   }
 
-  Widget _buildExportRequestList(AuditLogService service) {
-    if (service.exports.isEmpty) {
-      return const Center(
-        child: Text('No export requests', style: TextStyle(color: ScholesaColors.textSecondary)),
-      );
-    }
-
-    return RefreshIndicator(
-      onRefresh: () => service.loadExportRequests(),
-      child: ListView.builder(
-        padding: const EdgeInsets.all(16),
-        itemCount: service.exports.length,
-        itemBuilder: (BuildContext context, int index) => _buildExportCard(service.exports[index]),
-      ),
-    );
-  }
-
-  Widget _buildExportCard(ExportRequest request) {
-    Color statusColor;
-    switch (request.status) {
-      case ExportStatus.completed:
-        statusColor = Colors.green;
-      case ExportStatus.processing:
-        statusColor = Colors.blue;
-      case ExportStatus.failed:
-        statusColor = Colors.red;
-      case ExportStatus.expired:
-        statusColor = Colors.grey;
-      case ExportStatus.pending:
-        statusColor = Colors.orange;
-    }
-
-    return Card(
-      margin: const EdgeInsets.only(bottom: 8),
-      color: ScholesaColors.surface,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      child: ListTile(
-        leading: Container(
-          padding: const EdgeInsets.all(8),
-          decoration: BoxDecoration(
-            color: statusColor.withValues(alpha: 0.15),
-            borderRadius: BorderRadius.circular(8),
-          ),
-          child: Icon(Icons.download_rounded, color: statusColor, size: 20),
-        ),
-        title: Text(request.exportType, style: const TextStyle(fontWeight: FontWeight.w600)),
-        subtitle: Text(
-          '${request.requestedBy ?? 'Unknown'} • ${_formatTime(request.requestedAt)}',
-          style: const TextStyle(fontSize: 12, color: ScholesaColors.textSecondary),
-        ),
-        trailing: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-          decoration: BoxDecoration(
-            color: statusColor.withValues(alpha: 0.15),
-            borderRadius: BorderRadius.circular(8),
-          ),
-          child: Text(request.status.name, style: TextStyle(fontSize: 12, fontWeight: FontWeight.w500, color: statusColor)),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildDeletionRequestList(AuditLogService service) {
-    if (service.deletions.isEmpty) {
-      return const Center(
-        child: Text('No deletion requests', style: TextStyle(color: ScholesaColors.textSecondary)),
-      );
-    }
-
-    return RefreshIndicator(
-      onRefresh: () => service.loadDeletionRequests(),
-      child: ListView.builder(
-        padding: const EdgeInsets.all(16),
-        itemCount: service.deletions.length,
-        itemBuilder: (BuildContext context, int index) => _buildDeletionCard(service.deletions[index], service),
-      ),
-    );
-  }
-
-  Widget _buildDeletionCard(DeletionRequest request, AuditLogService service) {
-    Color statusColor;
-    switch (request.stage) {
-      case DeletionStage.softDelete:
-        statusColor = Colors.orange;
-      case DeletionStage.hardDeleteScheduled:
-        statusColor = Colors.red;
-      case DeletionStage.hardDeleteCompleted:
-        statusColor = Colors.grey;
-    }
-
-    return Card(
-      margin: const EdgeInsets.only(bottom: 8),
-      color: ScholesaColors.surface,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: <Widget>[
-            Row(
-              children: <Widget>[
-                Container(
-                  padding: const EdgeInsets.all(8),
-                  decoration: BoxDecoration(
-                    color: statusColor.withValues(alpha: 0.15),
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: Icon(Icons.delete_outline_rounded, color: statusColor, size: 20),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: <Widget>[
-                      Text('${request.targetType}: ${request.targetId}', style: const TextStyle(fontWeight: FontWeight.w600)),
-                      Text(
-                        '${request.requestedBy ?? 'Unknown'} • ${_formatTime(request.requestedAt)}',
-                        style: const TextStyle(fontSize: 12, color: ScholesaColors.textSecondary),
-                      ),
-                    ],
-                  ),
-                ),
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                  decoration: BoxDecoration(
-                    color: statusColor.withValues(alpha: 0.15),
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: Text(request.stage.name, style: TextStyle(fontSize: 11, fontWeight: FontWeight.w500, color: statusColor)),
-                ),
-              ],
-            ),
-            if (request.legalHold) ...<Widget>[
-              const SizedBox(height: 12),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                decoration: BoxDecoration(
-                  color: Colors.red.withValues(alpha: 0.1),
-                  borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: Colors.red.withValues(alpha: 0.3)),
-                ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: <Widget>[
-                    Icon(Icons.gavel_rounded, size: 16, color: Colors.red.shade700),
-                    const SizedBox(width: 6),
-                    Text('Legal Hold Active', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w500, color: Colors.red.shade700)),
-                  ],
-                ),
-              ),
-            ],
-            if (!request.legalHold && request.stage == DeletionStage.softDelete) ...<Widget>[
-              const SizedBox(height: 12),
-              Row(
-                children: <Widget>[
-                  TextButton.icon(
-                    onPressed: () => _setLegalHold(service, request.id, true),
-                    icon: const Icon(Icons.gavel_rounded, size: 16),
-                    label: const Text('Set Legal Hold'),
-                    style: TextButton.styleFrom(foregroundColor: Colors.red),
-                  ),
-                ],
-              ),
-            ],
-          ],
-        ),
-      ),
-    );
-  }
-
-  Future<void> _setLegalHold(AuditLogService service, String requestId, bool hold) async {
-    final bool success = await service.setLegalHold(requestId, hold);
-    
-    // Track telemetry
-    final TelemetryService telemetry = context.read<TelemetryService>();
-    await telemetry.trackLegalHoldSet(requestId: requestId, isHeld: hold);
-    
-    if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(success ? 'Legal hold ${hold ? 'set' : 'released'}' : 'Failed to update legal hold'),
-          backgroundColor: success ? Colors.green : Colors.red,
-        ),
-      );
-    }
-  }
-
   void _showFilterDialog() {
     showDialog<void>(
       context: context,
       builder: (BuildContext context) => AlertDialog(
         backgroundColor: ScholesaColors.surface,
-        title: const Text('Filter Audit Logs'),
+        title: const Text('Filter by Category'),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: <Widget>[
             _buildFilterOption('All', null),
-            _buildFilterOption('Auth Events', 'auth.'),
-            _buildFilterOption('User/Role Events', 'user'),
-            _buildFilterOption('Data Events', 'data'),
-            _buildFilterOption('Admin Events', 'admin'),
+            _buildFilterOption('Auth', _AuditCategory.auth),
+            _buildFilterOption('Data', _AuditCategory.data),
+            _buildFilterOption('Admin', _AuditCategory.admin),
+            _buildFilterOption('System', _AuditCategory.system),
           ],
         ),
       ),
     );
   }
 
-  Widget _buildFilterOption(String label, String? filter) {
+  Widget _buildFilterOption(String label, _AuditCategory? category) {
     return ListTile(
       title: Text(label),
-      leading: Radio<String?>(
-        value: filter,
-        groupValue: _filterAction,
-        onChanged: (String? value) {
-          setState(() => _filterAction = value);
+      leading: Radio<_AuditCategory?>(
+        value: category,
+        groupValue: _filterCategory,
+        onChanged: (_AuditCategory? value) {
+          setState(() => _filterCategory = value);
           Navigator.pop(context);
         },
       ),
       onTap: () {
-        setState(() => _filterAction = filter);
+        setState(() => _filterCategory = category);
         Navigator.pop(context);
       },
     );
   }
 
-  void _showLogDetails(AuditLogEntry log) {
+  void _showLogDetails(_AuditLog log) {
     showModalBottomSheet<void>(
       context: context,
       backgroundColor: ScholesaColors.surface,
@@ -461,16 +243,14 @@ class _HqAuditPageState extends State<HqAuditPage> with SingleTickerProviderStat
           children: <Widget>[
             Text(log.action, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
             const SizedBox(height: 16),
-            _buildDetailRow('User', log.userId ?? 'System'),
+            _buildDetailRow('Category', log.category.name.toUpperCase()),
+            _buildDetailRow('Actor', log.actor),
             _buildDetailRow('Time', _formatTime(log.timestamp)),
-            if (log.targetType != null) _buildDetailRow('Target Type', log.targetType!),
-            if (log.targetId != null) _buildDetailRow('Target ID', log.targetId!),
-            if (log.metadata != null && log.metadata!.isNotEmpty) ...<Widget>[
-              const SizedBox(height: 8),
-              const Text('Metadata', style: TextStyle(fontWeight: FontWeight.w600, color: ScholesaColors.textSecondary)),
-              const SizedBox(height: 4),
-              Text(log.metadata.toString(), style: const TextStyle(fontSize: 12)),
-            ],
+            if (log.ipAddress != null) _buildDetailRow('IP Address', log.ipAddress!),
+            const SizedBox(height: 8),
+            Text('Details', style: TextStyle(fontWeight: FontWeight.w600, color: ScholesaColors.textSecondary)),
+            const SizedBox(height: 4),
+            Text(log.details),
             const SizedBox(height: 24),
             SizedBox(
               width: double.infinity,
@@ -488,8 +268,8 @@ class _HqAuditPageState extends State<HqAuditPage> with SingleTickerProviderStat
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: <Widget>[
-          Text(label, style: const TextStyle(color: ScholesaColors.textSecondary)),
-          Flexible(child: Text(value, style: const TextStyle(fontWeight: FontWeight.w500), textAlign: TextAlign.right)),
+          Text(label, style: TextStyle(color: ScholesaColors.textSecondary)),
+          Text(value, style: const TextStyle(fontWeight: FontWeight.w500)),
         ],
       ),
     );

@@ -1,9 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
-
 import '../../ui/theme/scholesa_theme.dart';
-import 'parent_models.dart';
-import 'parent_service.dart';
 
 /// Parent Schedule Page - View learner schedules and upcoming sessions
 class ParentSchedulePage extends StatefulWidget {
@@ -19,23 +15,7 @@ class _ParentSchedulePageState extends State<ParentSchedulePage> {
   String _viewMode = 'week'; // day, week, month
 
   @override
-  void initState() {
-    super.initState();
-    // Load schedule data from Firebase
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      final DateTime now = DateTime.now();
-      final DateTime startOfWeek = now.subtract(Duration(days: now.weekday - 1));
-      final DateTime endOfMonth = DateTime(now.year, now.month + 1, 0);
-      context.read<ParentService>().loadSchedule(
-            startDate: startOfWeek,
-            endDate: endOfMonth,
-          );
-    });
-  }
-
-  @override
   Widget build(BuildContext context) {
-    final ParentService parentService = context.watch<ParentService>();
     return Scaffold(
       body: Container(
         decoration: BoxDecoration(
@@ -53,9 +33,9 @@ class _ParentSchedulePageState extends State<ParentSchedulePage> {
           slivers: <Widget>[
             SliverToBoxAdapter(child: _buildHeader()),
             SliverToBoxAdapter(child: _buildLearnerFilter()),
-            SliverToBoxAdapter(child: _buildCalendarStrip(parentService)),
-            SliverToBoxAdapter(child: _buildUpcomingSection(parentService)),
-            SliverToBoxAdapter(child: _buildTodaySchedule(parentService)),
+            SliverToBoxAdapter(child: _buildCalendarStrip()),
+            SliverToBoxAdapter(child: _buildUpcomingSection()),
+            SliverToBoxAdapter(child: _buildTodaySchedule()),
             SliverToBoxAdapter(child: _buildWeekOverview()),
             const SliverPadding(padding: EdgeInsets.only(bottom: 32)),
           ],
@@ -164,7 +144,7 @@ class _ParentSchedulePageState extends State<ParentSchedulePage> {
     );
   }
 
-  Widget _buildCalendarStrip(ParentService parentService) {
+  Widget _buildCalendarStrip() {
     final DateTime today = DateTime.now();
     final List<DateTime> days = List<DateTime>.generate(
       7,
@@ -220,7 +200,7 @@ class _ParentSchedulePageState extends State<ParentSchedulePage> {
                       ),
                     ),
                     const SizedBox(height: 4),
-                    if (_hasEvents(date, parentService))
+                    if (_hasEvents(date))
                       Container(
                         width: 6,
                         height: 6,
@@ -239,33 +219,7 @@ class _ParentSchedulePageState extends State<ParentSchedulePage> {
     );
   }
 
-  Widget _buildUpcomingSection(ParentService parentService) {
-    final List<UpcomingEvent> events = parentService.scheduleEvents;
-    final DateTime now = DateTime.now();
-
-    // Find next upcoming event
-    final List<UpcomingEvent> upcomingEvents = events
-        .where((UpcomingEvent e) => e.dateTime.isAfter(now))
-        .toList()
-      ..sort((UpcomingEvent a, UpcomingEvent b) => a.dateTime.compareTo(b.dateTime));
-
-    final UpcomingEvent? nextEvent =
-        upcomingEvents.isNotEmpty ? upcomingEvents.first : null;
-
-    String timeUntil = 'No upcoming sessions';
-    String eventTitle = 'Check back later';
-    if (nextEvent != null) {
-      final Duration diff = nextEvent.dateTime.difference(now);
-      if (diff.inDays > 0) {
-        timeUntil = 'Next Session in ${diff.inDays} day${diff.inDays > 1 ? 's' : ''}';
-      } else if (diff.inHours > 0) {
-        timeUntil = 'Next Session in ${diff.inHours} hour${diff.inHours > 1 ? 's' : ''}';
-      } else {
-        timeUntil = 'Next Session in ${diff.inMinutes} min';
-      }
-      eventTitle = '${nextEvent.title} @ ${nextEvent.location}';
-    }
-
+  Widget _buildUpcomingSection() {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16),
       child: Container(
@@ -292,36 +246,32 @@ class _ParentSchedulePageState extends State<ParentSchedulePage> {
               child: const Icon(Icons.event_available, color: ScholesaColors.parent),
             ),
             const SizedBox(width: 12),
-            Expanded(
+            const Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: <Widget>[
                   Text(
-                    timeUntil,
-                    style: const TextStyle(fontWeight: FontWeight.bold),
+                    'Next Session in 2 hours',
+                    style: TextStyle(fontWeight: FontWeight.bold),
                   ),
                   Text(
-                    eventTitle,
-                    style: const TextStyle(color: Colors.grey, fontSize: 12),
+                    'Python Programming @ Lab A',
+                    style: TextStyle(color: Colors.grey, fontSize: 12),
                   ),
                 ],
               ),
             ),
-            if (nextEvent != null)
-              TextButton(
-                onPressed: () {},
-                child: const Text('Details'),
-              ),
+            TextButton(
+              onPressed: () {},
+              child: const Text('Details'),
+            ),
           ],
         ),
       ),
     );
   }
 
-  Widget _buildTodaySchedule(ParentService parentService) {
-    final List<UpcomingEvent> todayEvents =
-        parentService.getEventsForDate(DateTime.now());
-
+  Widget _buildTodaySchedule() {
     return Padding(
       padding: const EdgeInsets.all(16),
       child: Column(
@@ -331,79 +281,46 @@ class _ParentSchedulePageState extends State<ParentSchedulePage> {
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: <Widget>[
               const Text(
-                "Today's Schedule",
+                'Today\'s Schedule',
                 style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
               ),
               Text(
-                '${todayEvents.length} session${todayEvents.length != 1 ? 's' : ''}',
+                '3 sessions',
                 style: TextStyle(color: Colors.grey[600], fontSize: 14),
               ),
             ],
           ),
           const SizedBox(height: 12),
-          if (todayEvents.isEmpty)
-            Container(
-              padding: const EdgeInsets.all(24),
-              decoration: BoxDecoration(
-                color: Colors.grey.shade100,
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: const Center(
-                child: Text(
-                  'No sessions scheduled for today',
-                  style: TextStyle(color: Colors.grey),
-                ),
-              ),
-            )
-          else
-            ...todayEvents.map((UpcomingEvent event) {
-              final DateTime now = DateTime.now();
-              String status = 'upcoming';
-              if (event.dateTime
-                  .isBefore(now.subtract(const Duration(hours: 1)))) {
-                status = 'completed';
-              } else if (event.dateTime
-                  .isBefore(now.add(const Duration(hours: 1)))) {
-                status = 'in_progress';
-              }
-
-              return _ScheduleItem(
-                time: _formatTime(event.dateTime),
-                title: event.title,
-                learner: event.learnerName ?? 'Unknown',
-                location: event.location ?? '',
-                pillar: event.pillar ?? 'Future Skills',
-                pillarColor: _getPillarColor(event.pillar ?? 'Future Skills'),
-                status: status,
-              );
-            }),
+          _ScheduleItem(
+            time: '9:00 AM',
+            title: 'Python Programming',
+            learner: 'Emma Johnson',
+            location: 'Lab A',
+            pillar: 'Future Skills',
+            pillarColor: ScholesaColors.futureSkills,
+            status: 'completed',
+          ),
+          _ScheduleItem(
+            time: '11:00 AM',
+            title: 'Leadership Workshop',
+            learner: 'Emma Johnson',
+            location: 'Room 201',
+            pillar: 'Leadership',
+            pillarColor: ScholesaColors.leadership,
+            status: 'in_progress',
+          ),
+          _ScheduleItem(
+            time: '2:00 PM',
+            title: 'Community Project',
+            learner: 'Jack Johnson',
+            location: 'Main Hall',
+            pillar: 'Impact',
+            pillarColor: ScholesaColors.impact,
+            status: 'upcoming',
+          ),
         ],
       ),
     );
-  }
-
-  String _formatTime(DateTime dt) {
-    final int hour = dt.hour;
-    final int minute = dt.minute;
-    final String period = hour >= 12 ? 'PM' : 'AM';
-    final int displayHour = hour > 12 ? hour - 12 : (hour == 0 ? 12 : hour);
-    return '$displayHour:${minute.toString().padLeft(2, '0')} $period';
-  }
-
-  Color _getPillarColor(String pillar) {
-    switch (pillar.toLowerCase()) {
-      case 'future skills':
-      case 'futureskills':
-        return ScholesaColors.futureSkills;
-      case 'leadership':
-      case 'leadership & agency':
-        return ScholesaColors.leadership;
-      case 'impact':
-      case 'impact & innovation':
-        return ScholesaColors.impact;
-      default:
-        return ScholesaColors.parent;
-    }
   }
 
   Widget _buildWeekOverview() {
@@ -424,7 +341,7 @@ class _ParentSchedulePageState extends State<ParentSchedulePage> {
               borderRadius: BorderRadius.circular(16),
               border: Border.all(color: Colors.grey.shade200),
             ),
-            child: const Column(
+            child: Column(
               children: <Widget>[
                 _WeekDayRow(
                   day: 'Monday',
@@ -432,25 +349,25 @@ class _ParentSchedulePageState extends State<ParentSchedulePage> {
                   hours: '9 AM - 4 PM',
                   isToday: true,
                 ),
-                Divider(),
+                const Divider(),
                 _WeekDayRow(
                   day: 'Tuesday',
                   sessions: 2,
                   hours: '10 AM - 2 PM',
                 ),
-                Divider(),
+                const Divider(),
                 _WeekDayRow(
                   day: 'Wednesday',
                   sessions: 4,
                   hours: '9 AM - 5 PM',
                 ),
-                Divider(),
+                const Divider(),
                 _WeekDayRow(
                   day: 'Thursday',
                   sessions: 2,
                   hours: '11 AM - 3 PM',
                 ),
-                Divider(),
+                const Divider(),
                 _WeekDayRow(
                   day: 'Friday',
                   sessions: 3,
@@ -469,7 +386,7 @@ class _ParentSchedulePageState extends State<ParentSchedulePage> {
             ),
             child: Row(
               children: <Widget>[
-                const Expanded(
+                Expanded(
                   child: _WeekStat(
                     label: 'Total Sessions',
                     value: '14',
@@ -482,7 +399,7 @@ class _ParentSchedulePageState extends State<ParentSchedulePage> {
                   height: 40,
                   color: Colors.grey.shade200,
                 ),
-                const Expanded(
+                Expanded(
                   child: _WeekStat(
                     label: 'Future Skills',
                     value: '6',
@@ -495,7 +412,7 @@ class _ParentSchedulePageState extends State<ParentSchedulePage> {
                   height: 40,
                   color: Colors.grey.shade200,
                 ),
-                const Expanded(
+                Expanded(
                   child: _WeekStat(
                     label: 'Leadership',
                     value: '4',
@@ -508,7 +425,7 @@ class _ParentSchedulePageState extends State<ParentSchedulePage> {
                   height: 40,
                   color: Colors.grey.shade200,
                 ),
-                const Expanded(
+                Expanded(
                   child: _WeekStat(
                     label: 'Impact',
                     value: '4',
@@ -529,21 +446,22 @@ class _ParentSchedulePageState extends State<ParentSchedulePage> {
     return days[weekday - 1];
   }
 
-  bool _hasEvents(DateTime date, ParentService parentService) {
-    return parentService.hasEventsOnDate(date);
+  bool _hasEvents(DateTime date) {
+    // TODO: Wire to actual schedule data - currently shows indicator for weekdays
+    return date.weekday <= 5;
   }
 }
 
 class _ViewModeButton extends StatelessWidget {
+  final String label;
+  final bool isSelected;
+  final VoidCallback onTap;
 
   const _ViewModeButton({
     required this.label,
     required this.isSelected,
     required this.onTap,
   });
-  final String label;
-  final bool isSelected;
-  final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
@@ -569,6 +487,13 @@ class _ViewModeButton extends StatelessWidget {
 }
 
 class _ScheduleItem extends StatelessWidget {
+  final String time;
+  final String title;
+  final String learner;
+  final String location;
+  final String pillar;
+  final Color pillarColor;
+  final String status;
 
   const _ScheduleItem({
     required this.time,
@@ -579,13 +504,6 @@ class _ScheduleItem extends StatelessWidget {
     required this.pillarColor,
     required this.status,
   });
-  final String time;
-  final String title;
-  final String learner;
-  final String location;
-  final String pillar;
-  final Color pillarColor;
-  final String status;
 
   IconData get _statusIcon {
     switch (status) {
@@ -732,6 +650,10 @@ class _ScheduleItem extends StatelessWidget {
 }
 
 class _WeekDayRow extends StatelessWidget {
+  final String day;
+  final int sessions;
+  final String hours;
+  final bool isToday;
 
   const _WeekDayRow({
     required this.day,
@@ -739,10 +661,6 @@ class _WeekDayRow extends StatelessWidget {
     required this.hours,
     this.isToday = false,
   });
-  final String day;
-  final int sessions;
-  final String hours;
-  final bool isToday;
 
   @override
   Widget build(BuildContext context) {
@@ -787,6 +705,10 @@ class _WeekDayRow extends StatelessWidget {
 }
 
 class _WeekStat extends StatelessWidget {
+  final String label;
+  final String value;
+  final IconData icon;
+  final Color color;
 
   const _WeekStat({
     required this.label,
@@ -794,10 +716,6 @@ class _WeekStat extends StatelessWidget {
     required this.icon,
     required this.color,
   });
-  final String label;
-  final String value;
-  final IconData icon;
-  final Color color;
 
   @override
   Widget build(BuildContext context) {

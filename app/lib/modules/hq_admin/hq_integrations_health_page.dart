@@ -63,21 +63,21 @@ class HqIntegrationsHealthPage extends StatelessWidget {
 
   Widget _buildSiteIntegrations(BuildContext context) {
     final List<_SiteIntegration> sites = <_SiteIntegration>[
-      const _SiteIntegration(
+      _SiteIntegration(
         siteName: 'Downtown Studio',
         integrations: <_Integration>[
           _Integration(name: 'Google Classroom', status: _Status.healthy, lastSync: '5 min ago'),
           _Integration(name: 'GitHub', status: _Status.healthy, lastSync: '15 min ago'),
         ],
       ),
-      const _SiteIntegration(
+      _SiteIntegration(
         siteName: 'Westside Campus',
         integrations: <_Integration>[
           _Integration(name: 'Google Classroom', status: _Status.warning, lastSync: '2 hrs ago'),
           _Integration(name: 'Canvas LMS', status: _Status.healthy, lastSync: '30 min ago'),
         ],
       ),
-      const _SiteIntegration(
+      _SiteIntegration(
         siteName: 'North Branch',
         integrations: <_Integration>[
           _Integration(name: 'Google Classroom', status: _Status.error, lastSync: 'Failed'),
@@ -93,7 +93,7 @@ class HqIntegrationsHealthPage extends StatelessWidget {
           style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: ScholesaColors.textPrimary),
         ),
         const SizedBox(height: 12),
-        ...sites.map((_SiteIntegration site) => _buildSiteCard(context, site)),
+        ...sites.map((site) => _buildSiteCard(context, site)),
       ],
     );
   }
@@ -107,7 +107,7 @@ class HqIntegrationsHealthPage extends StatelessWidget {
         title: Text(site.siteName, style: const TextStyle(fontWeight: FontWeight.w600)),
         subtitle: Text('${site.integrations.length} integrations'),
         leading: _buildSiteStatusIcon(site),
-        children: site.integrations.map((_Integration integration) => _buildIntegrationTile(context, integration)).toList(),
+        children: site.integrations.map((integration) => _buildIntegrationTile(context, integration)).toList(),
       ),
     );
   }

@@ -1,13 +1,20 @@
-// Basic widget test for Scholesa app
-// Note: Full integration tests require Firebase emulator setup
+// This is a basic Flutter widget test.
+//
+// To perform an interaction with a widget in your test, use the WidgetTester
+// utility in the flutter_test package. For example, you can send tap and scroll
+// gestures. You can also use WidgetTester to find child widgets in the widget
+// tree, read text, and verify that the values of widget properties are correct.
 
 import 'package:flutter_test/flutter_test.dart';
 
+import 'package:scholesa_app/main.dart';
+
 void main() {
-  testWidgets('App smoke test placeholder', (WidgetTester tester) async {
-    // ScholesaApp requires Firebase initialization which isn't available in unit tests.
-    // Use integration tests with Firebase emulators for full app testing.
-    // See: integration_test/ directory for integration tests.
-    expect(true, isTrue);
+  testWidgets('App smoke test', (WidgetTester tester) async {
+    // Build our app and trigger a frame.
+    await tester.pumpWidget(const ScholesaApp());
+
+    // Verify that the app renders without errors
+    expect(find.byType(ScholesaApp), findsOneWidget);
   });
 }

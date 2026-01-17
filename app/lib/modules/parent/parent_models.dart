@@ -12,9 +12,9 @@ class LearnerSummary extends Equatable { // Progress per pillar (0-1)
     required this.missionsCompleted,
     required this.currentStreak,
     required this.attendanceRate,
-    this.recentActivities = const <RecentActivity>[],
-    this.upcomingEvents = const <UpcomingEvent>[],
-    this.pillarProgress = const <String, double>{},
+    this.recentActivities = const [],
+    this.upcomingEvents = const [],
+    this.pillarProgress = const {},
   });
   final String learnerId;
   final String learnerName;
@@ -68,9 +68,6 @@ class UpcomingEvent extends Equatable {
     required this.dateTime,
     required this.type,
     this.location,
-    this.learnerName,
-    this.learnerId,
-    this.pillar,
   });
   final String id;
   final String title;
@@ -78,12 +75,9 @@ class UpcomingEvent extends Equatable {
   final DateTime dateTime;
   final String type; // class, mission_due, event, conference
   final String? location;
-  final String? learnerName;
-  final String? learnerId;
-  final String? pillar;
 
   @override
-  List<Object?> get props => <Object?>[id, title, description, dateTime, type, location, learnerName, learnerId, pillar];
+  List<Object?> get props => <Object?>[id, title, description, dateTime, type, location];
 }
 
 /// Billing summary for parents
@@ -94,7 +88,7 @@ class BillingSummary extends Equatable {
     required this.nextPaymentAmount,
     this.nextPaymentDate,
     required this.subscriptionPlan,
-    this.recentPayments = const <PaymentHistory>[],
+    this.recentPayments = const [],
   });
   final double currentBalance;
   final double nextPaymentAmount;

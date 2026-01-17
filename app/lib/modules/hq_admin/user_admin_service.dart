@@ -1,26 +1,18 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:cloud_functions/cloud_functions.dart';
 import 'package:flutter/foundation.dart';
 import '../../auth/app_state.dart' show UserRole;
-import '../../services/telemetry_service.dart';
+import '../../services/firestore_service.dart';
 import 'user_models.dart';
 
-/// Service for HQ user administration
+/// Service for HQ user administration - wired to Firebase
 class UserAdminService extends ChangeNotifier {
 
-  UserAdminService({
-    FirebaseFirestore? firestore,
-    FirebaseFunctions? functions,
-    this.currentUserId,
-    this.currentUserEmail,
-    this.telemetryService,
-  }) : _firestore = firestore ?? FirebaseFirestore.instance,
-       _functions = functions ?? FirebaseFunctions.instance;
-  final FirebaseFirestore _firestore;
-  final FirebaseFunctions _functions;
-  final String? currentUserId;
-  final String? currentUserEmail;
-  final TelemetryService? telemetryService;
+  UserAdminService({required FirestoreService firestoreService}) 
+      : _firestoreService = firestoreService;
+  
+  // ignore: unused_field
+  final FirestoreService _firestoreService;
+  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
 
   List<UserModel> _users = <UserModel>[];
   List<SiteModel> _sites = <SiteModel>[];
@@ -104,17 +96,16 @@ class UserAdminService extends ChangeNotifier {
     notifyListeners();
   }
 
-  /// Load all users (HQ only) from Firebase
+  /// Load all users from Firebase (HQ only)
   Future<void> loadUsers() async {
     _isLoading = true;
     _error = null;
     notifyListeners();
 
     try {
-      // Load users from Firestore
-      final QuerySnapshot<Map<String, dynamic>> usersSnapshot = await _firestore
-          .collection('users')
-          .get();
+      // Load users from Firebase
+      final QuerySnapshot<Map<String, dynamic>> usersSnapshot =
+          await _firestore.collection('users').get();
       
       _users = usersSnapshot.docs.map((QueryDocumentSnapshot<Map<String, dynamic>> doc) {
         final Map<String, dynamic> data = doc.data();
@@ -122,41 +113,39 @@ class UserAdminService extends ChangeNotifier {
           uid: doc.id,
           email: data['email'] as String? ?? '',
           displayName: data['displayName'] as String?,
-          photoURL: data['photoURL'] as String?,
-          role: _parseUserRole(data['role'] as String?),
-          status: _parseUserStatus(data['status'] as String?),
+          role: _parseRole(data['role'] as String?),
+          status: _parseStatus(data['status'] as String?),
           siteIds: List<String>.from(data['siteIds'] as List<dynamic>? ?? <dynamic>[]),
           parentIds: List<String>.from(data['parentIds'] as List<dynamic>? ?? <dynamic>[]),
           organizationId: data['organizationId'] as String?,
-          createdAt: (data['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
-          updatedAt: (data['updatedAt'] as Timestamp?)?.toDate(),
-          lastLoginAt: (data['lastLoginAt'] as Timestamp?)?.toDate(),
+          createdAt: _parseTimestamp(data['createdAt']) ?? DateTime.now(),
+          updatedAt: _parseTimestamp(data['updatedAt']),
+          lastLoginAt: _parseTimestamp(data['lastLoginAt']),
         );
       }).toList();
+
+      // Load sites from Firebase
+      final QuerySnapshot<Map<String, dynamic>> sitesSnapshot =
+          await _firestore.collection('sites').get();
       
-      // Load sites from Firestore
-      final QuerySnapshot<Map<String, dynamic>> sitesSnapshot = await _firestore
-          .collection('sites')
-          .get();
-      
-      _sites = await Future.wait(sitesSnapshot.docs.map((QueryDocumentSnapshot<Map<String, dynamic>> doc) async {
+      _sites = sitesSnapshot.docs.map((QueryDocumentSnapshot<Map<String, dynamic>> doc) {
         final Map<String, dynamic> data = doc.data();
-        
-        // Count users and learners for this site
-        final int userCount = _users.where((UserModel u) => u.siteIds.contains(doc.id)).length;
-        final int learnerCount = _users.where((UserModel u) => u.siteIds.contains(doc.id) && u.role == UserRole.learner).length;
-        
         return SiteModel(
           id: doc.id,
-          name: data['name'] as String? ?? '',
+          name: data['name'] as String? ?? 'Unknown Site',
           location: data['location'] as String?,
           siteLeadIds: List<String>.from(data['siteLeadIds'] as List<dynamic>? ?? <dynamic>[]),
-          createdAt: (data['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
-          userCount: userCount,
-          learnerCount: learnerCount,
+          createdAt: _parseTimestamp(data['createdAt']) ?? DateTime.now(),
+          userCount: _users.where((UserModel u) => u.siteIds.contains(doc.id)).length,
+          learnerCount: _users.where((UserModel u) => 
+            u.siteIds.contains(doc.id) && u.role == UserRole.learner
+          ).length,
         );
-      }));
+      }).toList();
+
+      debugPrint('Loaded ${_users.length} users and ${_sites.length} sites from Firebase');
     } catch (e) {
+      debugPrint('Error loading users from Firebase: $e');
       _error = 'Failed to load users: $e';
     } finally {
       _isLoading = false;
@@ -164,22 +153,16 @@ class UserAdminService extends ChangeNotifier {
     }
   }
 
-  /// Generate a deterministic user doc ID from email (for invited users)
-  String _generateUserDocId(String email) {
-    // Use a simple hash of the email for pending invites
-    return 'invite_${email.toLowerCase().replaceAll(RegExp(r'[^a-z0-9]'), '_')}';
-  }
-
-  UserRole _parseUserRole(String? role) {
-    switch (role) {
+  /// Parse role from string
+  UserRole _parseRole(String? roleStr) {
+    if (roleStr == null) return UserRole.learner;
+    switch (roleStr.toLowerCase()) {
       case 'hq':
         return UserRole.hq;
       case 'educator':
         return UserRole.educator;
       case 'site':
         return UserRole.site;
-      case 'learner':
-        return UserRole.learner;
       case 'parent':
         return UserRole.parent;
       case 'partner':
@@ -189,48 +172,57 @@ class UserAdminService extends ChangeNotifier {
     }
   }
 
-  UserStatus _parseUserStatus(String? status) {
-    switch (status) {
-      case 'active':
-        return UserStatus.active;
-      case 'pending':
-        return UserStatus.pending;
+  /// Parse status from string
+  UserStatus _parseStatus(String? statusStr) {
+    if (statusStr == null) return UserStatus.active;
+    switch (statusStr.toLowerCase()) {
       case 'suspended':
         return UserStatus.suspended;
       case 'deactivated':
         return UserStatus.deactivated;
+      case 'pending':
+        return UserStatus.pending;
       default:
         return UserStatus.active;
     }
   }
 
+  /// Parse Firestore Timestamp to DateTime
+  DateTime? _parseTimestamp(dynamic value) {
+    if (value == null) return null;
+    if (value is Timestamp) return value.toDate();
+    if (value is int) return DateTime.fromMillisecondsSinceEpoch(value);
+    return null;
+  }
+
   /// Load audit logs from Firebase
   Future<void> loadAuditLogs({String? userId}) async {
     try {
-      Query<Map<String, dynamic>> query = _firestore.collection('audit_logs')
+      Query<Map<String, dynamic>> query = _firestore.collection('auditLogs')
           .orderBy('timestamp', descending: true)
           .limit(100);
       
       if (userId != null) {
         query = query.where('entityId', isEqualTo: userId);
       }
+
+      final QuerySnapshot<Map<String, dynamic>> snapshot = await query.get();
       
-      final QuerySnapshot<Map<String, dynamic>> logsSnapshot = await query.get();
-      
-      _auditLogs = logsSnapshot.docs.map((QueryDocumentSnapshot<Map<String, dynamic>> doc) {
+      _auditLogs = snapshot.docs.map((QueryDocumentSnapshot<Map<String, dynamic>> doc) {
         final Map<String, dynamic> data = doc.data();
         return AuditLogEntry(
           id: doc.id,
           actorId: data['actorId'] as String? ?? '',
-          actorEmail: data['actorEmail'] as String? ?? '',
-          action: data['action'] as String? ?? '',
-          entityType: data['entityType'] as String? ?? '',
+          actorEmail: data['actorEmail'] as String?,
+          action: data['action'] as String? ?? 'unknown',
+          entityType: data['entityType'] as String? ?? 'Unknown',
           entityId: data['entityId'] as String? ?? '',
           siteId: data['siteId'] as String?,
-          details: Map<String, String>.from(data['details'] as Map<dynamic, dynamic>? ?? <dynamic, dynamic>{}),
-          timestamp: (data['timestamp'] as Timestamp?)?.toDate() ?? DateTime.now(),
+          details: data['details'] as Map<String, dynamic>?,
+          timestamp: _parseTimestamp(data['timestamp']) ?? DateTime.now(),
         );
       }).toList();
+      
       notifyListeners();
     } catch (e) {
       debugPrint('Failed to load audit logs: $e');
@@ -238,136 +230,57 @@ class UserAdminService extends ChangeNotifier {
   }
 
   /// Create a new user in Firebase
-  /// Note: This creates a Firestore user profile that must be linked to Firebase Auth
-  /// The user will need to be created in Firebase Auth separately (via invite flow or registration)
   Future<UserModel?> createUser({
     required String email,
     required String displayName,
     required UserRole role,
     required List<String> siteIds,
-    String? uid, // Optional: pre-assigned UID from Firebase Auth
   }) async {
     _isLoading = true;
     notifyListeners();
 
     try {
-      final DateTime now = DateTime.now();
-      
-      // Generate a temporary ID if no UID provided
-      // The ID will be the email hash to allow lookup before Auth is created
-      final String docId = uid ?? _generateUserDocId(email);
-      
-      await _firestore.collection('users').doc(docId).set(<String, dynamic>{
+      // Create user document in Firebase
+      final DocumentReference<Map<String, dynamic>> docRef = 
+          await _firestore.collection('users').add(<String, dynamic>{
         'email': email,
         'displayName': displayName,
         'role': role.name,
-        'status': uid != null ? UserStatus.active.name : UserStatus.pending.name,
+        'status': 'pending',
         'siteIds': siteIds,
-        'createdAt': Timestamp.fromDate(now),
-        'invitedAt': uid == null ? Timestamp.fromDate(now) : null,
-      }, SetOptions(merge: true));
+        'entitlements': <Map<String, dynamic>>[],
+        'createdAt': FieldValue.serverTimestamp(),
+        'updatedAt': FieldValue.serverTimestamp(),
+      });
 
       // Log the action
       await _logAuditAction(
         action: 'user.created',
         entityType: 'User',
-        entityId: docId,
-        siteId: siteIds.isNotEmpty ? siteIds.first : null,
+        entityId: docRef.id,
+        details: <String, dynamic>{
+          'email': email,
+          'role': role.name,
+          'siteIds': siteIds,
+        },
       );
 
       final UserModel newUser = UserModel(
-        uid: docId,
+        uid: docRef.id,
         email: email,
         displayName: displayName,
         role: role,
-        status: uid != null ? UserStatus.active : UserStatus.pending,
+        status: UserStatus.pending,
         siteIds: siteIds,
-        createdAt: now,
+        createdAt: DateTime.now(),
       );
       
       _users = <UserModel>[..._users, newUser];
-      
-      // Track telemetry
-      await telemetryService?.logEvent('user_admin.user_created', metadata: <String, dynamic>{
-        'userId': docId,
-        'role': role.name,
-        'siteCount': siteIds.length,
-      });
-      
+      notifyListeners();
       return newUser;
     } catch (e) {
-      _error = 'Failed to create user: $e';
-      return null;
-    } finally {
-      _isLoading = false;
+      _error = e.toString();
       notifyListeners();
-    }
-  }
-
-  /// Create a new user with password via Cloud Function
-  /// This creates both the Firebase Auth user and Firestore profile
-  Future<UserModel?> createUserWithPassword({
-    required String email,
-    required String password,
-    required String displayName,
-    required UserRole role,
-    required List<String> siteIds,
-  }) async {
-    _isLoading = true;
-    _error = null;
-    notifyListeners();
-
-    try {
-      final HttpsCallable callable = _functions.httpsCallable('createUserWithPassword');
-      final HttpsCallableResult<dynamic> result = await callable.call(<String, dynamic>{
-        'email': email,
-        'password': password,
-        'displayName': displayName,
-        'role': role.name,
-        'siteIds': siteIds,
-      });
-
-      final Map<String, dynamic> data = Map<String, dynamic>.from(result.data as Map);
-      
-      if (data['success'] == true) {
-        final String uid = data['uid'] as String;
-        final DateTime now = DateTime.now();
-        
-        // Log the action
-        await _logAuditAction(
-          action: 'user.created_with_password',
-          entityType: 'User',
-          entityId: uid,
-          siteId: siteIds.isNotEmpty ? siteIds.first : null,
-          details: <String, String>{'email': email, 'role': role.name},
-        );
-
-        final UserModel newUser = UserModel(
-          uid: uid,
-          email: email,
-          displayName: displayName,
-          role: role,
-          siteIds: siteIds,
-          createdAt: now,
-        );
-        
-        _users = <UserModel>[..._users, newUser];
-        
-        // Track telemetry
-        await telemetryService?.logEvent('user_admin.user_created_with_password', metadata: <String, dynamic>{
-          'userId': uid,
-          'role': role.name,
-          'siteCount': siteIds.length,
-        });
-        
-        return newUser;
-      } else {
-        _error = data['error']?.toString() ?? 'Failed to create user';
-        return null;
-      }
-    } catch (e) {
-      _error = 'Failed to create user: $e';
-      debugPrint('createUserWithPassword error: $e');
       return null;
     } finally {
       _isLoading = false;
@@ -378,15 +291,14 @@ class UserAdminService extends ChangeNotifier {
   /// Update user role in Firebase
   Future<bool> updateUserRole(String userId, UserRole newRole) async {
     try {
-      final DateTime now = DateTime.now();
       final int index = _users.indexWhere((UserModel u) => u.uid == userId);
       if (index == -1) return false;
 
-      final UserModel oldUser = _users[index];
-      
+      final UserRole oldRole = _users[index].role;
+
       await _firestore.collection('users').doc(userId).update(<String, dynamic>{
         'role': newRole.name,
-        'updatedAt': Timestamp.fromDate(now),
+        'updatedAt': FieldValue.serverTimestamp(),
       });
 
       // Log the action
@@ -394,23 +306,20 @@ class UserAdminService extends ChangeNotifier {
         action: 'user.role_updated',
         entityType: 'User',
         entityId: userId,
-        siteId: oldUser.siteIds.isNotEmpty ? oldUser.siteIds.first : null,
-        details: <String, String>{'oldRole': oldUser.role.name, 'newRole': newRole.name},
+        details: <String, dynamic>{
+          'oldRole': oldRole.name,
+          'newRole': newRole.name,
+        },
       );
 
-      _users[index] = oldUser.copyWith(role: newRole, updatedAt: now);
-      
-      // Track telemetry
-      await telemetryService?.logEvent('user_admin.role_updated', metadata: <String, dynamic>{
-        'userId': userId,
-        'oldRole': oldUser.role.name,
-        'newRole': newRole.name,
-      });
-      
+      _users[index] = _users[index].copyWith(
+        role: newRole,
+        updatedAt: DateTime.now(),
+      );
       notifyListeners();
       return true;
     } catch (e) {
-      _error = 'Failed to update user role: $e';
+      _error = e.toString();
       notifyListeners();
       return false;
     }
@@ -419,39 +328,35 @@ class UserAdminService extends ChangeNotifier {
   /// Update user status in Firebase (suspend/reactivate)
   Future<bool> updateUserStatus(String userId, UserStatus newStatus) async {
     try {
-      final DateTime now = DateTime.now();
       final int index = _users.indexWhere((UserModel u) => u.uid == userId);
       if (index == -1) return false;
 
-      final UserModel oldUser = _users[index];
+      final UserStatus oldStatus = _users[index].status;
 
       await _firestore.collection('users').doc(userId).update(<String, dynamic>{
         'status': newStatus.name,
-        'updatedAt': Timestamp.fromDate(now),
+        'updatedAt': FieldValue.serverTimestamp(),
       });
 
       // Log the action
       await _logAuditAction(
-        action: 'user.status_updated',
+        action: newStatus == UserStatus.suspended ? 'user.suspended' : 'user.status_updated',
         entityType: 'User',
         entityId: userId,
-        siteId: oldUser.siteIds.isNotEmpty ? oldUser.siteIds.first : null,
-        details: <String, String>{'oldStatus': oldUser.status.name, 'newStatus': newStatus.name},
+        details: <String, dynamic>{
+          'oldStatus': oldStatus.name,
+          'newStatus': newStatus.name,
+        },
       );
 
-      _users[index] = oldUser.copyWith(status: newStatus, updatedAt: now);
-      
-      // Track telemetry
-      await telemetryService?.logEvent('user_admin.status_updated', metadata: <String, dynamic>{
-        'userId': userId,
-        'oldStatus': oldUser.status.name,
-        'newStatus': newStatus.name,
-      });
-      
+      _users[index] = _users[index].copyWith(
+        status: newStatus,
+        updatedAt: DateTime.now(),
+      );
       notifyListeners();
       return true;
     } catch (e) {
-      _error = 'Failed to update user status: $e';
+      _error = e.toString();
       notifyListeners();
       return false;
     }
@@ -464,14 +369,13 @@ class UserAdminService extends ChangeNotifier {
       if (index == -1) return false;
 
       final UserModel user = _users[index];
-      if (user.siteIds.contains(siteId)) return true;
+      if (user.siteIds.contains(siteId)) return true; // Already in site
 
       final List<String> newSiteIds = <String>[...user.siteIds, siteId];
-      final DateTime now = DateTime.now();
 
       await _firestore.collection('users').doc(userId).update(<String, dynamic>{
         'siteIds': newSiteIds,
-        'updatedAt': Timestamp.fromDate(now),
+        'updatedAt': FieldValue.serverTimestamp(),
       });
 
       // Log the action
@@ -482,18 +386,14 @@ class UserAdminService extends ChangeNotifier {
         siteId: siteId,
       );
 
-      _users[index] = user.copyWith(siteIds: newSiteIds, updatedAt: now);
-      
-      // Track telemetry
-      await telemetryService?.logEvent('user_admin.site_added', metadata: <String, dynamic>{
-        'userId': userId,
-        'siteId': siteId,
-      });
-      
+      _users[index] = user.copyWith(
+        siteIds: newSiteIds,
+        updatedAt: DateTime.now(),
+      );
       notifyListeners();
       return true;
     } catch (e) {
-      _error = 'Failed to add user to site: $e';
+      _error = e.toString();
       notifyListeners();
       return false;
     }
@@ -507,11 +407,10 @@ class UserAdminService extends ChangeNotifier {
 
       final UserModel user = _users[index];
       final List<String> newSiteIds = user.siteIds.where((String s) => s != siteId).toList();
-      final DateTime now = DateTime.now();
 
       await _firestore.collection('users').doc(userId).update(<String, dynamic>{
         'siteIds': newSiteIds,
-        'updatedAt': Timestamp.fromDate(now),
+        'updatedAt': FieldValue.serverTimestamp(),
       });
 
       // Log the action
@@ -522,24 +421,20 @@ class UserAdminService extends ChangeNotifier {
         siteId: siteId,
       );
 
-      _users[index] = user.copyWith(siteIds: newSiteIds, updatedAt: now);
-      
-      // Track telemetry
-      await telemetryService?.logEvent('user_admin.site_removed', metadata: <String, dynamic>{
-        'userId': userId,
-        'siteId': siteId,
-      });
-      
+      _users[index] = user.copyWith(
+        siteIds: newSiteIds,
+        updatedAt: DateTime.now(),
+      );
       notifyListeners();
       return true;
     } catch (e) {
-      _error = 'Failed to remove user from site: $e';
+      _error = e.toString();
       notifyListeners();
       return false;
     }
   }
 
-  /// Delete user (deactivate)
+  /// Delete user (deactivate in Firebase)
   Future<bool> deleteUser(String userId) async {
     return updateUserStatus(userId, UserStatus.deactivated);
   }
@@ -548,24 +443,19 @@ class UserAdminService extends ChangeNotifier {
   Future<void> _logAuditAction({
     required String action,
     required String entityType,
-    required String entityId,
+    String? entityId,
     String? siteId,
-    Map<String, String>? details,
+    Map<String, dynamic>? details,
   }) async {
-    if (currentUserId == null) {
-      debugPrint('Cannot log audit: no authenticated user');
-      return;
-    }
     try {
-      await _firestore.collection('audit_logs').add(<String, dynamic>{
-        'actorId': currentUserId,
-        'actorEmail': currentUserEmail ?? 'unknown',
+      await _firestore.collection('auditLogs').add(<String, dynamic>{
         'action': action,
         'entityType': entityType,
         'entityId': entityId,
         'siteId': siteId,
-        'details': details ?? <String, String>{},
-        'timestamp': Timestamp.now(),
+        'details': details,
+        'timestamp': FieldValue.serverTimestamp(),
+        // Actor info will be filled by security rules or cloud function
       });
     } catch (e) {
       debugPrint('Failed to log audit action: $e');

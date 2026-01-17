@@ -313,7 +313,7 @@ class _SiteSessionsPageState extends State<SiteSessionsPage> {
   }
 
   void _createNewSession() {
-    showModalBottomSheet<void>(
+    showModalBottomSheet(
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
@@ -601,7 +601,7 @@ class _CreateSessionSheetState extends State<_CreateSessionSheet> {
                   ),
                   const SizedBox(height: 16),
                   DropdownButtonFormField<String>(
-                    initialValue: _selectedRoom,
+                    value: _selectedRoom,
                     decoration: InputDecoration(
                       labelText: 'Room',
                       filled: true,

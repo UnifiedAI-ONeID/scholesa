@@ -1,11 +1,12 @@
 /// Module exports - central barrel file for all modules
+library modules;
 
 // Attendance
 export 'attendance/attendance_page.dart';
 // Check-in/out
 export 'checkin/checkin.dart';
 // Educator
-export 'educator/educator.dart' hide MissionSubmission;
+export 'educator/educator.dart';
 // Habits
 export 'habits/habits.dart';
 // HQ Admin

@@ -188,7 +188,7 @@ class _ParentBillingPageState extends State<ParentBillingPage>
                     ),
                     const SizedBox(height: 4),
                     const Text(
-                      r'$0.00',
+                      '\$0.00',
                       style: TextStyle(
                         color: Colors.white,
                         fontSize: 32,
@@ -234,16 +234,16 @@ class _ParentBillingPageState extends State<ParentBillingPage>
               ],
             ),
             const SizedBox(height: 20),
-            const Row(
+            Row(
               children: <Widget>[
                 Expanded(
                   child: _BalanceStatCard(
                     label: 'This Month',
-                    value: r'$450',
+                    value: '\$450',
                     icon: Icons.calendar_today,
                   ),
                 ),
-                SizedBox(width: 12),
+                const SizedBox(width: 12),
                 Expanded(
                   child: _BalanceStatCard(
                     label: 'Next Due',
@@ -251,11 +251,11 @@ class _ParentBillingPageState extends State<ParentBillingPage>
                     icon: Icons.event,
                   ),
                 ),
-                SizedBox(width: 12),
+                const SizedBox(width: 12),
                 Expanded(
                   child: _BalanceStatCard(
                     label: 'Total Paid',
-                    value: r'$2,700',
+                    value: '\$2,700',
                     icon: Icons.check_circle_outline,
                   ),
                 ),
@@ -418,7 +418,7 @@ class _ParentBillingPageState extends State<ParentBillingPage>
                 ),
                 const SizedBox(height: 16),
                 const Text(
-                  r'$450/month',
+                  '\$450/month',
                   style: TextStyle(
                     fontSize: 28,
                     fontWeight: FontWeight.bold,
@@ -436,23 +436,23 @@ class _ParentBillingPageState extends State<ParentBillingPage>
                   style: TextStyle(fontWeight: FontWeight.bold),
                 ),
                 const SizedBox(height: 12),
-                const _PlanFeature(
+                _PlanFeature(
                   icon: Icons.school,
                   text: 'Unlimited session access',
                 ),
-                const _PlanFeature(
+                _PlanFeature(
                   icon: Icons.rocket_launch,
                   text: 'All 3 pillars curriculum',
                 ),
-                const _PlanFeature(
+                _PlanFeature(
                   icon: Icons.person,
                   text: '1-on-1 educator support',
                 ),
-                const _PlanFeature(
+                _PlanFeature(
                   icon: Icons.insights,
                   text: 'Real-time progress reports',
                 ),
-                const _PlanFeature(
+                _PlanFeature(
                   icon: Icons.workspace_premium,
                   text: 'Certificates & badges',
                 ),
@@ -568,15 +568,15 @@ class _ParentBillingPageState extends State<ParentBillingPage>
 }
 
 class _BalanceStatCard extends StatelessWidget {
+  final String label;
+  final String value;
+  final IconData icon;
 
   const _BalanceStatCard({
     required this.label,
     required this.value,
     required this.icon,
   });
-  final String label;
-  final String value;
-  final IconData icon;
 
   @override
   Widget build(BuildContext context) {
@@ -609,15 +609,15 @@ class _BalanceStatCard extends StatelessWidget {
 }
 
 class _InvoiceCard extends StatelessWidget {
+  final Map<String, dynamic> invoice;
+  final VoidCallback onPay;
+  final VoidCallback onView;
 
   const _InvoiceCard({
     required this.invoice,
     required this.onPay,
     required this.onView,
   });
-  final Map<String, dynamic> invoice;
-  final VoidCallback onPay;
-  final VoidCallback onView;
 
   bool get _isPaid => invoice['status'] == 'paid';
 
@@ -736,9 +736,9 @@ class _InvoiceCard extends StatelessWidget {
 }
 
 class _PaymentCard extends StatelessWidget {
+  final Map<String, dynamic> payment;
 
   const _PaymentCard({required this.payment});
-  final Map<String, dynamic> payment;
 
   @override
   Widget build(BuildContext context) {
@@ -789,10 +789,10 @@ class _PaymentCard extends StatelessWidget {
 }
 
 class _PlanFeature extends StatelessWidget {
-
-  const _PlanFeature({required this.icon, required this.text});
   final IconData icon;
   final String text;
+
+  const _PlanFeature({required this.icon, required this.text});
 
   @override
   Widget build(BuildContext context) {

@@ -1,4 +1,3 @@
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
@@ -38,13 +37,8 @@ class _RegisterPageState extends State<RegisterPage> {
     });
 
     try {
-      // Register with Firebase Auth
-      final UserCredential credential = await FirebaseAuth.instance.createUserWithEmailAndPassword(
-        email: _emailController.text.trim(),
-        password: _passwordController.text,
-      );
-      // Update display name
-      await credential.user?.updateDisplayName(_nameController.text.trim());
+      // TODO: Call AuthService.registerWithEmailAndPassword
+      await Future.delayed(const Duration(seconds: 1));
       
       if (mounted) {
         context.go('/');

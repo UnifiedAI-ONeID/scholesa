@@ -1,28 +1,25 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/foundation.dart';
+import '../../services/api_client.dart';
 import '../../offline/offline_queue.dart';
 import '../../offline/sync_coordinator.dart';
-import '../../services/telemetry_service.dart';
 import 'attendance_models.dart';
-
-// Telemetry wiring: TelemetryService is injected via constructor or accessed via Provider
 
 /// Service for attendance operations
 class AttendanceService extends ChangeNotifier {
 
   AttendanceService({
+    required ApiClient apiClient,
     required SyncCoordinator syncCoordinator,
-    FirebaseFirestore? firestore,
     this.educatorId,
     this.siteId,
-    this.telemetryService,
-  })  : _syncCoordinator = syncCoordinator,
-        _firestore = firestore ?? FirebaseFirestore.instance;
+  })  : _apiClient = apiClient,
+        _syncCoordinator = syncCoordinator;
+  final ApiClient _apiClient;
   final SyncCoordinator _syncCoordinator;
   final String? educatorId;
   final String? siteId;
-  final FirebaseFirestore _firestore;
-  final TelemetryService? telemetryService;
+  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
 
   List<SessionOccurrence> _todayOccurrences = <SessionOccurrence>[];
   SessionOccurrence? _currentOccurrence;
@@ -77,8 +74,9 @@ class AttendanceService extends ChangeNotifier {
             siteId: data['siteId'] as String? ?? '',
             title: data['title'] as String? ?? 'Untitled Session',
             startTime: _parseTimestamp(data['startTime']) ?? DateTime.now(),
-            endTime: _parseTimestamp(data['endTime']) ?? DateTime.now().add(const Duration(hours: 1)),
+            endTime: _parseTimestamp(data['endTime']),
             roomName: data['roomName'] as String?,
+            roster: <RosterLearner>[], // Roster loaded separately
             learnerCount: enrollmentsSnapshot.docs.length,
           );
         }),
@@ -158,13 +156,12 @@ class AttendanceService extends ChangeNotifier {
           if (existingAttendance != null) {
             currentAttendance = AttendanceRecord(
               id: existingAttendance['id'] as String,
-              siteId: occData['siteId'] as String? ?? '',
               occurrenceId: occurrenceId,
               learnerId: learnerId,
               status: _parseAttendanceStatus(existingAttendance['status'] as String?),
               recordedAt: _parseTimestamp(existingAttendance['recordedAt']) ?? DateTime.now(),
-              recordedBy: existingAttendance['recordedBy'] as String? ?? 'unknown',
-              note: existingAttendance['notes'] as String?,
+              recordedBy: existingAttendance['recordedBy'] as String?,
+              notes: existingAttendance['notes'] as String?,
             );
           }
 
@@ -183,7 +180,7 @@ class AttendanceService extends ChangeNotifier {
         siteId: occData['siteId'] as String? ?? '',
         title: occData['title'] as String? ?? 'Untitled',
         startTime: _parseTimestamp(occData['startTime']) ?? DateTime.now(),
-        endTime: _parseTimestamp(occData['endTime']) ?? DateTime.now().add(const Duration(hours: 1)),
+        endTime: _parseTimestamp(occData['endTime']),
         roomName: occData['roomName'] as String?,
         roster: roster,
       );
@@ -205,14 +202,6 @@ class AttendanceService extends ChangeNotifier {
       await _syncCoordinator.queueOperation(
         OpType.attendanceRecord,
         record.toJson(),
-      );
-
-      // Track telemetry event
-      telemetryService?.trackAttendanceRecorded(
-        sessionOccurrenceId: record.occurrenceId,
-        totalLearners: _currentOccurrence?.roster.length ?? 1,
-        presentCount: record.status == AttendanceStatus.present ? 1 : 0,
-        isOffline: !_syncCoordinator.isOnline,
       );
 
       // Write to Firebase
