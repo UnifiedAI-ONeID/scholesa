@@ -16,37 +16,39 @@ void main() {
       expect(op.idempotencyKey, isNotEmpty);
     });
 
-    test('serializes to JSON', () {
+    test('converts to Isar model and back', () {
       final QueuedOp op = QueuedOp(
         type: OpType.presenceCheckin,
         payload: <String, dynamic>{'siteId': 'site1', 'learnerId': 'learner1'},
       );
 
-      final Map<String, dynamic> json = op.toJson();
+      final model = op.toModel();
+      final QueuedOp restored = QueuedOp.fromModel(model);
 
-      expect(json['type'], equals('presenceCheckin'));
-      expect(json['payload']['siteId'], equals('site1'));
-      expect(json['status'], equals('pending'));
+      expect(restored.type, equals(OpType.presenceCheckin));
+      expect(restored.payload['siteId'], equals('site1'));
+      expect(restored.status, equals(OpStatus.pending));
     });
 
-    test('deserializes from JSON', () {
-      final Map<String, Object?> json = <String, Object?>{
-        'id': 'op123',
-        'type': 'attendanceRecord',
-        'payload': <String, String>{'learnerId': 'learner1'},
-        'createdAt': DateTime.now().millisecondsSinceEpoch,
-        'idempotencyKey': 'key123',
-        'status': 'synced',
-        'retryCount': 2,
-        'lastError': null,
-      };
+    test('preserves all fields through model conversion', () {
+      final QueuedOp op = QueuedOp(
+        id: 'op123',
+        type: OpType.attendanceRecord,
+        payload: <String, dynamic>{'learnerId': 'learner1'},
+        idempotencyKey: 'key123',
+        status: OpStatus.synced,
+        retryCount: 2,
+        lastError: 'Some error',
+      );
 
-      final QueuedOp op = QueuedOp.fromJson(json);
+      final model = op.toModel();
+      final QueuedOp restored = QueuedOp.fromModel(model);
 
-      expect(op.id, equals('op123'));
-      expect(op.type, equals(OpType.attendanceRecord));
-      expect(op.status, equals(OpStatus.synced));
-      expect(op.retryCount, equals(2));
+      expect(restored.id, equals('op123'));
+      expect(restored.type, equals(OpType.attendanceRecord));
+      expect(restored.status, equals(OpStatus.synced));
+      expect(restored.retryCount, equals(2));
+      expect(restored.lastError, equals('Some error'));
     });
   });
 
